@@ -151,9 +151,10 @@ def _parser() -> argparse.ArgumentParser:
         p.add_argument("request_id")
         p.add_argument("--note", default="")
 
-    p = sub.add_parser("audit", help="show the audit log")
+    p = sub.add_parser("audit", help="show the audit log (one line per attempt)")
     _add_common(p)
     p.add_argument("--limit", type=int, default=30)
+    p.add_argument("--verbose", "-v", action="store_true", help="include parameters, messages and details")
 
     p = sub.add_parser("migrate", help="review and apply a changed ontology to the database")
     _add_common(p)
@@ -295,7 +296,15 @@ def _main(args) -> int:
             return 1
         _dump(req, args.json)
     elif args.cmd == "audit":
-        _dump(engine.store.audit_log(args.limit), args.json)
+        rows = engine.store.audit_log(args.limit)
+        if args.json or args.verbose:
+            _dump(rows, args.json)
+        else:  # one line per attempt; --verbose / --json show parameters, messages and rule outcomes
+            for row in rows:
+                who = f"{row['actor']} ({row['role']})"
+                ref = row["detail"].get("request_id") or row["detail"].get("delivery") or ""
+                print(f"{row['seq']:>4}  {row['ts'][:19]}  {who:<22} {row['event']:<8} "
+                      f"{row['action'] or '-':<26} {row['outcome']:<17}{ref}".rstrip())
     elif args.cmd == "history":
         _dump(engine.store.history(), args.json)
     elif args.cmd == "deliver":

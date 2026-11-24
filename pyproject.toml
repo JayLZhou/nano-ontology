@@ -32,3 +32,6 @@ line-length = 130
 [tool.ruff.lint]
 select = ["E", "F", "W", "B"]
 ignore = ["B905"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/readme_assets.py" = ["E501"]  # a drawing script: long SVG f-strings read better unbroken

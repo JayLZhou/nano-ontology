@@ -13,6 +13,15 @@ Roadmap features:
 - **HTTP MCP transport** with per-user bearer tokens (`nano-onto serve-http`, `nano-onto token`).
 - **Benchmark harness** in `benchmark/`.
 
+Documentation and tooling:
+
+- README rewritten around a showcase of real output; new `docs/` (walkthrough in English and Chinese,
+  ontology reference, agent setup, CLI reference, architecture) and `examples/walkthrough.sh`, which runs
+  the complete flow end to end and is part of CI.
+- `images/` is generated from real sessions and recorded benchmark episodes by `scripts/readme_assets.py`.
+- `nano-onto audit` prints one line per attempt (`--verbose` / `--json` for details).
+- Both MCP transports are tested against the official MCP Python SDK client.
+
 Fixes found while auditing 0.1.0:
 
 - `amount=nan` (or `inf`) passed every comparison and so every rule; non-finite numbers are now rejected.
