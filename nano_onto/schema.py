@@ -6,8 +6,8 @@ expressions, roles, effects -- so a broken ontology fails at load time rather
 than in the middle of an agent's action. Unknown keys are errors: a typo such
 as ``allowed_role:`` must not silently leave an action open to everyone.
 
-Keys starting with ``x-`` are ignored everywhere, so tools such as
-Ontology-Anything can attach review metadata without breaking the loader.
+Keys starting with ``x-`` are ignored everywhere, so other tools can attach their own
+annotations (review notes, provenance) without breaking the loader.
 """
 
 from __future__ import annotations

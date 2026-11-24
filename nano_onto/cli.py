@@ -184,7 +184,16 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--allow-origin", action="append", default=[], help="extra browser origin to accept")
 
-    p = sub.add_parser("token", help="issue (or revoke) a bearer token for serve-http")
+    p = sub.add_parser("console", help="web console for people: ontology, data, actions, approvals, audit log")
+    _add_common(p)
+    p.add_argument("--tokens", help="tokens file written by `nano-onto token`; each token is one user")
+    p.add_argument("--demo", action="append", default=[], metavar="USER:ROLE",
+                   help="demo user to switch to in the page, no sign-in (localhost only; repeatable)")
+    p.add_argument("--auditor", action="append", default=[], metavar="ROLE", help="role that may read the whole audit log")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8787)
+
+    p = sub.add_parser("token", help="issue (or revoke) a bearer token for serve-http and console")
     p.add_argument("--tokens", required=True, help="tokens file (stores only hashes)")
     p.add_argument("--actor", required=True)
     p.add_argument("--role", help="role the token acts with")
@@ -324,7 +333,7 @@ def _main(args) -> int:
             print("queued again" if retry(engine, args.retry) else f"no dead delivery {args.retry!r}")
         else:
             _dump(engine.store.outbox(args.status), args.json)
-    elif args.cmd in ("serve-mcp", "serve-http"):
+    elif args.cmd in ("serve-mcp", "serve-http", "console"):
         wake = None
         if onto.webhooks:
             from .webhooks import Worker
@@ -335,10 +344,23 @@ def _main(args) -> int:
             engine._check_role(actor)
             MCPServer(engine, actor, wake).serve()
         else:
-            from .http_server import make_server
+            if args.cmd == "console":
+                from .console import make_console
 
-            server = make_server(engine, args.tokens, args.host, args.port, tuple(args.allow_origin), wake)
-            print(f"nano-onto MCP ({onto.stamp}) on http://{args.host}:{server.server_address[1]}/mcp", file=sys.stderr)
+                users = []
+                for pair in args.demo:
+                    if ":" not in pair:
+                        raise SystemExit(f"--demo expects USER:ROLE, got {pair!r}")
+                    users.append(Actor(*pair.split(":", 1)))
+                server = make_console(engine, args.tokens, users, args.host, args.port, tuple(args.auditor), wake)
+                what = "console" + (" (DEMO: no sign-in)" if users else "")
+                url = f"http://{args.host}:{server.server_address[1]}/"
+            else:
+                from .http_server import make_server
+
+                server = make_server(engine, args.tokens, args.host, args.port, tuple(args.allow_origin), wake)
+                what, url = "MCP", f"http://{args.host}:{server.server_address[1]}/mcp"
+            print(f"nano-onto {what} ({onto.stamp}) on {url}", file=sys.stderr)
             try:
                 server.serve_forever()
             except KeyboardInterrupt:

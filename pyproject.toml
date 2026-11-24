@@ -23,6 +23,9 @@ nano-onto = "nano_onto.cli:main"
 [tool.setuptools.packages.find]
 include = ["nano_onto*"]
 
+[tool.setuptools.package-data]
+nano_onto = ["*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -35,3 +38,4 @@ ignore = ["B905"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/readme_assets.py" = ["E501"]  # a drawing script: long SVG f-strings read better unbroken
+"scripts/console_screenshots.py" = ["B023"]  # closures are called inside the loop iteration that defines them

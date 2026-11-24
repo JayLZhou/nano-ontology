@@ -1,6 +1,6 @@
 # 完整流程
 
-这份文档把一个本体从头到尾走一遍：校验、建库、通过动作改数据、审批、按权限读取、审计、在审核下修改规则，最后用三种方式交给 agent。
+这份文档把一个本体从头到尾走一遍：校验、建库、通过动作改数据、审批、按权限读取、审计、在审核下修改规则，用三种方式交给 agent，最后在浏览器里打开。
 
 全部可以直接运行。一条命令在一个临时数据库上跑完整个流程：
 
@@ -33,10 +33,10 @@ initialised shop.db: Supplier=3, PurchaseOrder=2, links=2
 ## 2. 先问再做：试运行
 
 ```console
-$ nano-onto explain submit_purchase_order -p title=服务器 -p amount=60000 -p supplier=S-002 --actor alice --role employee
+$ nano-onto explain submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
 [WAIT] submit_purchase_order: pending_approval (dry run)
-  - needs approval by dept_manager (部门经理): 单笔超过 1 万元须部门经理审批
-  - needs approval by cfo (财务总监): 单笔超过 5 万元须财务总监审批
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
   [ ] no_blacklisted_supplier: params.supplier.blacklisted
   [ ] positive_amount: params.amount <= 0
   [x] dept_manager_over_10k: params.amount > 10000 -> needs approval by dept_manager
@@ -49,7 +49,7 @@ $ nano-onto explain submit_purchase_order -p title=服务器 -p amount=60000 -p 
 ## 3. 一个被允许的动作
 
 ```console
-$ nano-onto run submit_purchase_order -p title=文具 -p amount=8000 -p supplier=S-001 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Stationery -p amount=8000 -p supplier=S-001 --actor alice --role employee
 [OK] submit_purchase_order: executed
   created po: PO-0003
 ```
@@ -59,10 +59,10 @@ $ nano-onto run submit_purchase_order -p title=文具 -p amount=8000 -p supplier
 ## 4. 一个被拒绝的动作
 
 ```console
-$ nano-onto run submit_purchase_order -p title=芯片 -p amount=4800 -p supplier=S-003 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Chips -p amount=4800 -p supplier=S-003 --actor alice --role employee
 [DENIED] submit_purchase_order: denied
-  - denied: 不得向黑名单供应商采购
-  - warning: 该供应商评级为 C，请注意交付风险
+  - denied: Blacklisted suppliers cannot be used
+  - warning: This supplier is rated C; expect delivery risk
 ```
 
 `S-003` 在黑名单里。规则 `params.supplier.blacklisted` 沿着引用读到供应商对象，拒绝了这个动作。数据没有任何变化，命令退出码为 2。
@@ -70,10 +70,10 @@ $ nano-onto run submit_purchase_order -p title=芯片 -p amount=4800 -p supplier
 ## 5. 一个进入审批的动作
 
 ```console
-$ nano-onto run submit_purchase_order -p title=服务器 -p amount=60000 -p supplier=S-002 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
 [WAIT] submit_purchase_order: pending_approval
-  - needs approval by dept_manager (部门经理): 单笔超过 1 万元须部门经理审批
-  - needs approval by cfo (财务总监): 单笔超过 5 万元须财务总监审批
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
   request: REQ-298D1CC6  waiting for: cfo, dept_manager
 ```
 
@@ -127,7 +127,7 @@ id: S-001
 properties:
   bank_account: '***'
   blacklisted: false
-  name: 联华办公
+  name: Northwind Office Supply
   rating: A
   supplier_id: S-001
 links: {}
@@ -160,7 +160,7 @@ $ nano-onto audit
 把 `ontology.yaml` 里部门经理审批的门槛从 10000 改成 5000，并把 `version` 改成 `0.2.0`。数据库盖的是旧本体的戳，所以在这次改动被审阅之前，什么都不会执行：
 
 ```console
-$ nano-onto run submit_purchase_order -p title=打印机 -p amount=7000 -p supplier=S-001 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
 error: this database follows ontology procurement@0.1.0, but this process holds procurement@0.2.0 with different content. If the ontology file changed, review and apply it with `nano-onto migrate`; if the database was migrated, restart this process.
 $ nano-onto migrate --dry-run
 procurement@0.1.0 -> procurement@0.2.0
@@ -174,9 +174,9 @@ schema changes:
   ~ action_types.submit_purchase_order.rules.dept_manager_over_10k.when: "params.amount > 10000" -> "params.amount > 5000"
   ~ version: "0.1.0" -> "0.2.0"
 applied.
-$ nano-onto run submit_purchase_order -p title=打印机 -p amount=7000 -p supplier=S-001 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
 [WAIT] submit_purchase_order: pending_approval
-  - needs approval by dept_manager (部门经理): 单笔超过 1 万元须部门经理审批
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
   request: REQ-AC609D91  waiting for: dept_manager
 $ nano-onto history --json
 1 initialised procurement@0.1.0
@@ -223,11 +223,26 @@ wrote skill/SKILL.md
 
 生成的 `SKILL.md` 教支持 Skills 的 agent 只通过 `nano-onto run` 改数据，里面列出每个动作、参数和规则。Skill 方式下 `--actor/--role` 由 agent 自己传，所以如果不能让 agent 自选身份，请用 MCP。
 
+## 14. 给人用的控制台
+
+```bash
+nano-onto console --demo alice:employee --demo carol:cfo --auditor cfo --port 18787
+```
+
+```console
+alice's audit view -> own entries: 8
+carol's audit view -> all entries: 13
+alice sees bank account -> ***
+```
+
+Web 控制台就是同一个引擎前面加了一个页面。脚本向它的 API 问了三件事：Alice 只能看到自己的审计记录，Carol（审计角色）能看到全部，收款账号对 Alice 是脱敏的——和她的 agent 看到的完全一样。在浏览器里打开这个地址就能使用，详见[控制台](./console.md)。
+
 ## 接下来
 
 - 写自己的本体：[本体参考](./ontology-reference.md)
 - 数据留在原处：[直读已有表](./ontology-reference.md#existing-tables-read-through)，以及 `python examples/erp_readthrough/demo.py`
 - 动作提交后通知其他系统：[Webhook](./ontology-reference.md#webhooks)
 - 接入真实客户端：[接入 agent](./agents.md)
+- 在浏览器里用：[控制台](./console.md)
 - 所有命令和参数：[CLI 参考](./cli-reference.md)
 - 到底保证什么、不保证什么：[架构](./architecture.md)

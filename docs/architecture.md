@@ -56,7 +56,8 @@ nano-onto is one engine behind several thin surfaces. An ontology file says what
 | `tables.py` *(optional)* | ~175 | Read-through to existing tables |
 | `migrate.py` *(optional)* | ~220 | Schema diff and data migration |
 | `webhooks.py` *(optional)* | ~155 | Outbox delivery, retries, signing |
-| `http_server.py` *(optional)* | ~145 | MCP over HTTP with bearer tokens |
+| `http_server.py` *(optional)* | ~165 | MCP over HTTP with bearer tokens |
+| `console.py` + `console.html` *(optional)* | ~180 + one page | The web console: a small JSON API and a single static page |
 
 `bash core_lines.sh` prints the exact counts. Optional modules are imported only when used.
 

@@ -64,7 +64,7 @@ def test_properties_are_backfilled_renamed_and_dropped(engine):
     plan = migrate(engine.store, evolved(change))
     assert plan.applied and plan.steps == ["rewrite 3 Supplier object(s); drop bank_account; backfill country"]
     assert engine.store.get("Supplier", "S-003") == {
-        "supplier_id": "S-003", "name": "华达电子", "tier": "C", "blacklisted": True, "country": "CN"}
+        "supplier_id": "S-003", "name": "Redwood Electronics", "tier": "C", "blacklisted": True, "country": "CN"}
     assert engine.store.count("PurchaseOrder") == 2  # untouched
 
 
@@ -77,7 +77,7 @@ def test_unsafe_changes_are_problems_and_nothing_is_applied(engine):
     plan = migrate(engine.store, evolved(change))
     assert not plan.applied
     text = "\n".join(plan.problems)
-    assert "PurchaseOrder 'PO-0001': title='办公椅 20 把' is not a valid integer" in text
+    assert "PurchaseOrder 'PO-0001': title='20 office chairs' is not a valid integer" in text
     assert "Supplier 'S-003': rating='C' is not one of ['A', 'B']" in text
     assert "Supplier 'S-001': tax_id is required but has no value and no default" in text
     assert engine.store.get_meta("ontology")["version"] == "0.1.0"
@@ -154,7 +154,7 @@ def test_pending_requests_survive_rule_changes_and_are_rechecked(engine):
 def test_diff_ignores_annotations_and_reports_additions():
     old, new = raw_schema(), raw_schema()
     new["x-meta"] = 1
-    new["roles"]["auditor"] = {"label": "审计"}
+    new["roles"]["auditor"] = {"label": "Auditor"}
     new["object_types"]["Supplier"]["properties"]["rating"]["enum"].append("D")
     del new["action_types"]["blacklist_supplier"]
     assert diff(old, new) == [

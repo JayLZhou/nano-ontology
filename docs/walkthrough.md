@@ -1,6 +1,6 @@
 # Walkthrough: the complete flow
 
-This is the whole life of an ontology, start to finish: check it, load it, act through it, approve, read with permissions, audit, change a rule under review, and hand it to an agent three different ways.
+This is the whole life of an ontology, start to finish: check it, load it, act through it, approve, read with permissions, audit, change a rule under review, hand it to an agent three different ways, and open it in a browser.
 
 Everything here is runnable. One script does all of it against a throwaway database:
 
@@ -34,7 +34,8 @@ export NANO_ONTO_SCHEMA=examples/procurement/ontology.yaml NANO_ONTO_DB=shop.db
 11. [An agent over MCP (stdio)](#11-an-agent-over-mcp-stdio)
 12. [Many users over HTTP](#12-many-users-over-http)
 13. [A Skill](#13-a-skill)
-14. [Where to go next](#where-to-go-next)
+14. [The console, for people](#14-the-console-for-people)
+15. [Where to go next](#where-to-go-next)
 
 ## 1. Check and load
 
@@ -52,10 +53,10 @@ initialised shop.db: Supplier=3, PurchaseOrder=2, links=2
 A dry run evaluates an action without changing anything, and shows the rule trace:
 
 ```console
-$ nano-onto explain submit_purchase_order -p title=服务器 -p amount=60000 -p supplier=S-002 --actor alice --role employee
+$ nano-onto explain submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
 [WAIT] submit_purchase_order: pending_approval (dry run)
-  - needs approval by dept_manager (部门经理): 单笔超过 1 万元须部门经理审批
-  - needs approval by cfo (财务总监): 单笔超过 5 万元须财务总监审批
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
   [ ] no_blacklisted_supplier: params.supplier.blacklisted
   [ ] positive_amount: params.amount <= 0
   [x] dept_manager_over_10k: params.amount > 10000 -> needs approval by dept_manager
@@ -68,7 +69,7 @@ Every rule is listed with whether it fired. Agents get the same thing through th
 ## 3. An allowed action
 
 ```console
-$ nano-onto run submit_purchase_order -p title=文具 -p amount=8000 -p supplier=S-001 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Stationery -p amount=8000 -p supplier=S-001 --actor alice --role employee
 [OK] submit_purchase_order: executed
   created po: PO-0003
 ```
@@ -78,10 +79,10 @@ No rule fired, so the effects ran: a `PurchaseOrder` was created and linked to i
 ## 4. A denied action
 
 ```console
-$ nano-onto run submit_purchase_order -p title=芯片 -p amount=4800 -p supplier=S-003 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Chips -p amount=4800 -p supplier=S-003 --actor alice --role employee
 [DENIED] submit_purchase_order: denied
-  - denied: 不得向黑名单供应商采购
-  - warning: 该供应商评级为 C，请注意交付风险
+  - denied: Blacklisted suppliers cannot be used
+  - warning: This supplier is rated C; expect delivery risk
 ```
 
 `S-003` is blacklisted; the rule `params.supplier.blacklisted` followed the reference to the supplier object and denied the action. Nothing changed. The exit code is 2, so scripts notice.
@@ -89,10 +90,10 @@ $ nano-onto run submit_purchase_order -p title=芯片 -p amount=4800 -p supplier
 ## 5. An action held for approval
 
 ```console
-$ nano-onto run submit_purchase_order -p title=服务器 -p amount=60000 -p supplier=S-002 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
 [WAIT] submit_purchase_order: pending_approval
-  - needs approval by dept_manager (部门经理): 单笔超过 1 万元须部门经理审批
-  - needs approval by cfo (财务总监): 单笔超过 5 万元须财务总监审批
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
   request: REQ-298D1CC6  waiting for: cfo, dept_manager
 ```
 
@@ -146,7 +147,7 @@ id: S-001
 properties:
   bank_account: '***'
   blacklisted: false
-  name: 联华办公
+  name: Northwind Office Supply
   rating: A
   supplier_id: S-001
 links: {}
@@ -179,7 +180,7 @@ One row per attempt, including the dry run (1), the denial (3), the refused self
 Lower the manager-approval threshold from 10,000 to 5,000 in `ontology.yaml` and bump `version` to `0.2.0`. The database was stamped with the old ontology, so nothing runs until the change is reviewed:
 
 ```console
-$ nano-onto run submit_purchase_order -p title=打印机 -p amount=7000 -p supplier=S-001 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
 error: this database follows ontology procurement@0.1.0, but this process holds procurement@0.2.0 with different content. If the ontology file changed, review and apply it with `nano-onto migrate`; if the database was migrated, restart this process.
 $ nano-onto migrate --dry-run
 procurement@0.1.0 -> procurement@0.2.0
@@ -193,9 +194,9 @@ schema changes:
   ~ action_types.submit_purchase_order.rules.dept_manager_over_10k.when: "params.amount > 10000" -> "params.amount > 5000"
   ~ version: "0.1.0" -> "0.2.0"
 applied.
-$ nano-onto run submit_purchase_order -p title=打印机 -p amount=7000 -p supplier=S-001 --actor alice --role employee
+$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
 [WAIT] submit_purchase_order: pending_approval
-  - needs approval by dept_manager (部门经理): 单笔超过 1 万元须部门经理审批
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
   request: REQ-AC609D91  waiting for: dept_manager
 $ nano-onto history --json
 1 initialised procurement@0.1.0
@@ -240,11 +241,25 @@ $ nano-onto export-skill --out skill
 wrote skill/SKILL.md
 ---
 name: procurement-ontology
-description: "Read and change procurement business data (Supplier (供应商), PurchaseOrder (采购单)) only through ontology actions that enforce permissions, business rules and approvals. ..."
+description: "Read and change procurement business data (Supplier, PurchaseOrder) only through ontology actions that enforce permissions, business rules and approvals. ..."
 ---
 ```
 
 The generated `SKILL.md` teaches a Skills-capable agent to act only through `nano-onto run`, with every action, its parameters and its rules listed. A Skill passes `--actor/--role` itself, so use MCP when the agent must not be able to choose its identity.
+
+## 14. The console, for people
+
+```bash
+nano-onto console --demo alice:employee --demo carol:cfo --auditor cfo --port 18787
+```
+
+```console
+alice's audit view -> own entries: 8
+carol's audit view -> all entries: 13
+alice sees bank account -> ***
+```
+
+The web console is the same engine with a page in front of it. The script asks its API three questions: Alice sees only her own audit entries, Carol (an auditor role) sees all of them, and the bank account is masked for Alice here exactly as it is for her agent. Open the address in a browser to use it: [Console](./console.md).
 
 ## Where to go next
 
@@ -252,5 +267,6 @@ The generated `SKILL.md` teaches a Skills-capable agent to act only through `nan
 - Leave your data where it is: [Read-through](./ontology-reference.md#existing-tables-read-through), and `python examples/erp_readthrough/demo.py`
 - Notify other systems after an action commits: [Webhooks](./ontology-reference.md#webhooks)
 - Wire up a real client: [Connect an agent](./agents.md)
+- Use it in a browser: [Console](./console.md)
 - Every command and flag: [CLI reference](./cli-reference.md)
 - What exactly is guaranteed, and what is not: [Architecture](./architecture.md)

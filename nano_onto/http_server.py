@@ -73,27 +73,51 @@ def revoke_tokens(path: str | Path, actor: str) -> int:
     return len(entries) - len(kept)
 
 
+class TokenFile:
+    """Bearer tokens -> actors, re-read whenever the file changes (issuing or revoking needs no restart)."""
+
+    def __init__(self, path: str | Path, engine: Engine):
+        self.file, self.engine = Path(path), engine
+        self._mtime: Any = None
+        self._tokens: dict[str, Actor] = {}
+        self._lock = threading.Lock()
+        for actor in load_tokens(self.file).values():  # fail at start-up, not on the first request
+            if engine.onto.roles and actor.role not in engine.onto.roles:
+                raise ValueError(f"token for {actor.id!r} has unknown role {actor.role!r}")
+
+    def _current(self) -> dict[str, Actor]:
+        with self._lock:
+            mtime = self.file.stat().st_mtime_ns if self.file.exists() else None
+            if mtime != self._mtime:
+                try:
+                    self._tokens = load_tokens(self.file)
+                except (ValueError, OSError, yaml.YAMLError):
+                    self._tokens = {}  # an unreadable file authorises nobody
+                self._mtime = mtime
+            return self._tokens
+
+    def actor(self, authorization: str | None) -> Actor | None:
+        """The actor an ``Authorization`` header stands for, or ``None``."""
+        scheme, _, token = (authorization or "").partition(" ")
+        actor = self._current().get(_digest(token.strip())) if scheme.lower() == "bearer" and token.strip() else None
+        if actor is not None and self.engine.onto.roles and actor.role not in self.engine.onto.roles:
+            return None
+        return actor
+
+
+def origin_allowed(origin: str | None, allowed: tuple[str, ...] = ()) -> bool:
+    """Browsers send ``Origin``; accept none (not a browser), localhost, or an explicitly allowed one."""
+    if not origin:
+        return True
+    try:
+        return origin in allowed or urlparse(origin).hostname in _LOCAL_HOSTS
+    except ValueError:
+        return False
+
+
 def make_server(engine: Engine, tokens_path: str | Path, host: str = "127.0.0.1", port: int = 8765,
                 allowed_origins: tuple[str, ...] = (), on_commit: Callable[[], None] | None = None) -> ThreadingHTTPServer:
-    file = Path(tokens_path)
-    state: dict[str, Any] = {"mtime": None, "tokens": {}}
-    reload_lock = threading.Lock()
-
-    def current_tokens() -> dict[str, Actor]:
-        """The tokens file as it is now: issuing or revoking a token takes effect without a restart."""
-        with reload_lock:
-            mtime = file.stat().st_mtime_ns if file.exists() else None
-            if mtime != state["mtime"]:
-                try:
-                    state["tokens"] = load_tokens(file)
-                except (ValueError, OSError, yaml.YAMLError):
-                    state["tokens"] = {}  # an unreadable file authorises nobody
-                state["mtime"] = mtime
-            return state["tokens"]
-
-    for actor in load_tokens(file).values():
-        if engine.onto.roles and actor.role not in engine.onto.roles:
-            raise ValueError(f"token for {actor.id!r} has unknown role {actor.role!r}")
+    tokens = TokenFile(tokens_path, engine)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "nano-onto"
@@ -114,20 +138,10 @@ def make_server(engine: Engine, tokens_path: str | Path, host: str = "127.0.0.1"
             self.wfile.write(body)
 
         def _actor(self) -> Actor | None:
-            scheme, _, token = self.headers.get("Authorization", "").partition(" ")
-            actor = current_tokens().get(_digest(token.strip())) if scheme.lower() == "bearer" and token.strip() else None
-            if actor is not None and engine.onto.roles and actor.role not in engine.onto.roles:
-                return None
-            return actor
+            return tokens.actor(self.headers.get("Authorization"))
 
         def _origin_ok(self) -> bool:
-            origin = self.headers.get("Origin")
-            if not origin:  # not a browser
-                return True
-            try:
-                return origin in allowed_origins or urlparse(origin).hostname in _LOCAL_HOSTS
-            except ValueError:
-                return False
+            return origin_allowed(self.headers.get("Origin"), allowed_origins)
 
         def do_POST(self) -> None:  # noqa: N802
             try:

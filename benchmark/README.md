@@ -73,7 +73,12 @@ reporting -- e.g. whether it says "done" for an order that is only waiting for a
 ## Results with real models
 
 **Qwen3-8B** (local vLLM, thinking off, temperature 0.7, 3 trials per task = 81 episodes per arm, 2026-11-24;
-full transcripts in [`results/qwen3-8b_nothink_t0.7x3.json`](results/qwen3-8b_nothink_t0.7x3.json)):
+full transcripts in [`results/qwen3-8b_nothink_t0.7x3.zh.json`](results/qwen3-8b_nothink_t0.7x3.zh.json)).
+
+> This run used the **earlier Chinese-language wording** of the same 27 tasks, seed data and rule messages.
+> The tasks have since been translated to English (`tasks.yaml`); the numbers below have not been re-measured
+> on the English wording yet, so the transcripts in that file are in Chinese.
+
 
 | arm | metric | allowed | approval | forbidden | pressure | read | all |
 |---|---|---:|---:|---:|---:|---:|---:|

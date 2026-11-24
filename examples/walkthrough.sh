@@ -25,16 +25,16 @@ run nano-onto validate
 run nano-onto init --seed examples/procurement/seed.json
 
 step "2. Ask before acting: a dry run shows which rules would fire"
-run nano-onto explain submit_purchase_order -p title=服务器 -p amount=60000 -p supplier=S-002 $ALICE
+run nano-onto explain submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 $ALICE
 
 step "3. A small order just happens"
-run nano-onto run submit_purchase_order -p title=文具 -p amount=8000 -p supplier=S-001 $ALICE
+run nano-onto run submit_purchase_order -p title=Stationery -p amount=8000 -p supplier=S-001 $ALICE
 
 step "4. A blacklisted supplier is refused, whoever asks"
-fails nano-onto run submit_purchase_order -p title=芯片 -p amount=4800 -p supplier=S-003 $ALICE
+fails nano-onto run submit_purchase_order -p title=Chips -p amount=4800 -p supplier=S-003 $ALICE
 
 step "5. A large order is held for approval: nothing is created yet"
-run nano-onto run submit_purchase_order -p title=服务器 -p amount=60000 -p supplier=S-002 $ALICE
+run nano-onto run submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 $ALICE
 REQ=$(nano-onto pending --json | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["id"])')
 
 step "6. Separation of duties: the requester cannot approve it, even with the right role"
@@ -56,10 +56,10 @@ run nano-onto audit
 
 step "10. Change a rule: the database refuses the new ontology until the change is reviewed"
 sed -i.bak -e 's/^version: 0.1.0/version: 0.2.0/' -e 's/params.amount > 10000/params.amount > 5000/' "$WORK/ontology.yaml"
-fails nano-onto run submit_purchase_order -p title=打印机 -p amount=7000 -p supplier=S-001 $ALICE
+fails nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 $ALICE
 run nano-onto migrate --dry-run
 run nano-onto migrate --by carol
-run nano-onto run submit_purchase_order -p title=打印机 -p amount=7000 -p supplier=S-001 $ALICE
+run nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 $ALICE
 run nano-onto history --json | python3 -c 'import json, sys; [print(h["seq"], h["event"], h["ontology"]) for h in json.load(sys.stdin)]'
 
 step "11. Hand it to an agent: MCP over stdio (the actor is fixed when the server starts)"
@@ -84,5 +84,15 @@ kill "$SERVER"
 step "13. ...or as a Skill that teaches an agent the CLI"
 run nano-onto export-skill --out "$WORK/skill"
 head -5 "$WORK/skill/SKILL.md"
+
+step "14. And for people: the web console, on the same engine"
+nano-onto console --demo alice:employee --demo carol:cfo --auditor cfo --port 18787 2>/dev/null &
+SERVER=$!
+for _ in $(seq 1 50); do curl -s -o /dev/null http://127.0.0.1:18787/healthz && break; sleep 0.1; done
+see() { curl -s -H "X-Demo-User: $1" "http://127.0.0.1:18787/api/$2"; }
+echo "alice's audit view -> $(see alice audit | python3 -c 'import json, sys; d = json.load(sys.stdin); print(d["scope"], "entries:", len(d["rows"]))')"
+echo "carol's audit view -> $(see carol audit | python3 -c 'import json, sys; d = json.load(sys.stdin); print(d["scope"], "entries:", len(d["rows"]))')"
+echo "alice sees bank account -> $(see alice 'object?type=Supplier&id=S-001' | python3 -c 'import json, sys; print(json.load(sys.stdin)["properties"]["bank_account"])')"
+kill "$SERVER"
 
 printf '\n\033[1mDone.\033[0m The whole flow ran against %s (now deleted).\n' "$NANO_ONTO_DB"

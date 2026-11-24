@@ -11,6 +11,8 @@ nano-onto reaches an agent in four ways. They share one engine, so the rules, ap
 
 In the first two the model cannot choose its identity, which is the point: an agent that can pick its own role can pick `cfo`.
 
+People use the same engine through the [web console](./console.md): approvers decide requests there, and anyone can see what an agent did on their behalf.
+
 ## The tools an agent sees
 
 Each action in the ontology is one tool. Its description lists the action's allowed roles and every rule with its message, and its input schema is generated from the parameters. Next to them:

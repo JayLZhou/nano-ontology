@@ -28,7 +28,8 @@ nano-onto <command> [--schema FILE] [--db DATABASE] [--json] ...
 | `outbox [--status pending\|delivered\|dead] [--retry ID]` | List webhook deliveries; re-queue a dead one. |
 | `serve-mcp --actor A --role R` | MCP server on stdin/stdout, as one fixed actor. |
 | `serve-http --tokens FILE [--host H] [--port P] [--allow-origin O]` | MCP server over HTTP; each bearer token is one actor. |
-| `token --tokens FILE --actor A [--role R] [--revoke]` | Issue a token (printed once) or revoke an actor's tokens. |
+| `console (--tokens FILE \| --demo USER:ROLE ...) [--auditor ROLE] [--host H] [--port P]` | Web console for people. With `--tokens` each bearer token is one user; `--demo` users need no sign-in and only work on localhost. `--auditor` roles may read the whole audit log. |
+| `token --tokens FILE --actor A [--role R] [--revoke]` | Issue a token (printed once) or revoke an actor's tokens. Used by `serve-http` and `console`. |
 | `export-skill [--out DIR]` | Write a `SKILL.md` for Skills-capable agents. |
 
 ## Reading as someone

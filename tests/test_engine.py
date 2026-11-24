@@ -47,7 +47,7 @@ def test_string_amount_is_coerced(engine):
 def test_blacklisted_supplier_denied(engine):
     res = submit(engine, 100, supplier="S-003")
     assert res.status == "denied"
-    assert any("黑名单" in m for m in res.messages)
+    assert any("Blacklisted suppliers" in m for m in res.messages)
     assert engine.store.count("PurchaseOrder") == 2
 
 
@@ -105,7 +105,7 @@ def test_approval_rechecks_deny_rules(engine):
 
 def test_reject(engine):
     res = submit(engine, 20000)
-    out = engine.reject(res.request_id, BOB, "预算不足")
+    out = engine.reject(res.request_id, BOB, "no budget")
     assert out.status == "rejected"
     assert engine.pending() == []
 

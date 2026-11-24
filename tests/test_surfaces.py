@@ -24,7 +24,7 @@ def test_skill_mentions_rules():
     text = render_skill(Ontology.load(SCHEMA))
     assert text.startswith("---\nname: procurement-ontology")
     assert "cfo_over_50k" not in text  # ids stay internal
-    assert "须财务总监审批" in text
+    assert "Order exceeds 50,000" in text
 
 
 def test_cli_end_to_end(tmp_path, capsys):

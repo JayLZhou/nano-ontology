@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nano-onto console</title>
+<style>
+:root {
+  --bg: #f6f5f1; --surface: #ffffff; --surface2: #f1f0ec; --ink: #141413; --ink2: #52514e; --muted: #898781;
+  --line: #e1e0d9; --accent: #2a6fcc; --accent-ink: #ffffff; --accent-bg: #e8f0fb; --code: #f4f3ef;
+  --good: #0a7d0a; --good-bg: #e4f3e4; --warn: #8f6200; --warn-bg: #fcf1d2; --bad: #bf2c2c; --bad-bg: #fbe8e8;
+  --neutral: #52514e; --neutral-bg: #ecebe6; --shadow: 0 1px 2px rgba(20, 20, 19, .06), 0 4px 16px rgba(20, 20, 19, .05);
+}
+html.dark {
+  --bg: #111110; --surface: #1b1b1a; --surface2: #242422; --ink: #f0efec; --ink2: #c3c2b7; --muted: #8f8d86;
+  --line: #30302d; --accent: #6aa6ee; --accent-ink: #0d0d0d; --accent-bg: #172a44; --code: #141413;
+  --good: #57c957; --good-bg: #13301a; --warn: #e3b341; --warn-bg: #33290d; --bad: #f27878; --bad-bg: #3a1717;
+  --neutral: #c3c2b7; --neutral-bg: #2a2a28; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+button, input, select { font: inherit; color: inherit; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+h2 { font-size: 15px; margin: 28px 0 12px; }
+h3 { font-size: 14px; margin: 0; }
+p { margin: 0; }
+.sub { color: var(--ink2); margin-bottom: 20px; max-width: 78ch; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+
+.shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100%; }
+.side { background: var(--surface); border-right: 1px solid var(--line); padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
+.brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; padding: 0 8px; }
+.brand-sub { color: var(--muted); font-size: 12.5px; padding: 0 8px 16px; }
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--ink2); }
+.nav:hover { background: var(--surface2); }
+.nav.on { background: var(--accent-bg); color: var(--ink); font-weight: 600; }
+.count { background: var(--warn-bg); color: var(--warn); border-radius: 999px; font-size: 12px; font-weight: 700; padding: 0 8px; }
+.who { margin-top: auto; border-top: 1px solid var(--line); padding: 14px 8px 0; }
+.who label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+.who select, .field input, .field select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.who .role { margin-top: 8px; font-size: 12.5px; color: var(--ink2); }
+main { padding: 32px 40px 64px; min-width: 0; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.pad { padding: 16px 18px; }
+.grid { display: grid; gap: 16px; }
+.cols { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 600; background: var(--neutral-bg); color: var(--neutral); white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.good { background: var(--good-bg); color: var(--good); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.plain::before { display: none; }
+.tag { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; font-size: 12px; color: var(--ink2); background: var(--surface); }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-weight: 600; }
+.btn:hover { background: var(--surface2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* ontology graph */
+.graph { position: relative; display: flex; gap: 150px; align-items: flex-start; padding: 8px 4px 12px; width: max-content; }
+.graph svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.type { width: 268px; flex: none; }
+.type header { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+.type header .name { font-weight: 700; font-size: 15px; }
+.prop { display: flex; justify-content: space-between; gap: 10px; padding: 5px 14px; font-size: 13px; }
+.prop + .prop { border-top: 1px dashed var(--line); }
+.prop .t { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.type footer { border-top: 1px solid var(--line); padding: 8px 14px; font-size: 12px; color: var(--ink2); background: var(--surface2); border-radius: 0 0 12px 12px; }
+.edge-label { font-size: 12px; fill: var(--ink2); }
+.rule { padding: 10px 0; border-top: 1px solid var(--line); }
+.rule .cond { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.rule .msg { color: var(--ink2); margin-top: 4px; }
+.rule .src { color: var(--muted); font-size: 12.5px; font-style: italic; margin-top: 2px; }
+.cols { align-items: start; }
+
+/* tables */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+tr.click { cursor: pointer; }
+tr.click:hover td, tr.sel td { background: var(--surface2); }
+.masked { color: var(--muted); letter-spacing: .12em; }
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 14px; cursor: pointer; color: var(--ink2); }
+.tab.on { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.split.wide { grid-template-columns: 280px minmax(0, 1fr); }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+dt { color: var(--muted); }
+dd { margin: 0; word-break: break-word; }
+.list button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.list button:last-child { border-bottom: 0; }
+.list button:hover { background: var(--surface2); }
+.list button.on { background: var(--accent-bg); }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field .hint { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.trace { margin-top: 6px; }
+.trace .t { display: grid; grid-template-columns: 18px 1fr; gap: 2px 8px; padding: 7px 0; border-top: 1px solid var(--line); }
+.dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); margin-top: 5px; }
+.dot.deny { background: var(--bad); border-color: var(--bad); }
+.dot.approval { background: var(--warn); border-color: var(--warn); }
+.dot.ok { background: var(--good); border-color: var(--good); }
+.banner { border-radius: 10px; padding: 10px 14px; background: var(--surface2); color: var(--ink2); margin-bottom: 16px; }
+.banner.bad { background: var(--bad-bg); color: var(--bad); }
+.empty { padding: 28px; text-align: center; color: var(--muted); }
+.kv { display: inline-flex; gap: 6px; background: var(--surface2); border-radius: 6px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12.5px; }
+.kv b { color: var(--muted); font-weight: 500; }
+pre { background: var(--code); border-radius: 8px; padding: 10px 12px; overflow: auto; margin: 8px 0 0; font-size: 12px; }
+.signin { max-width: 420px; margin: 14vh auto; }
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .side { position: static; height: auto; } .split, .split.wide { grid-template-columns: 1fr; } main { padding: 20px 16px 48px; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+const params = new URLSearchParams(location.search);
+if (params.get("theme") === "dark" || (!params.get("theme") && matchMedia("(prefers-color-scheme: dark)").matches)) {
+  document.documentElement.classList.add("dark");
+}
+
+// ---------------------------------------------------------------- helpers
+function h(tag, props, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat(Infinity)) {
+    if (c === null || c === undefined || c === false) continue;
+    el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+const S = { session: null, me: null, onto: null, user: null, token: sessionStorage.getItem("nano-onto-token"), pending: 0 };
+
+async function api(path, body) {
+  const headers = {};
+  if (S.session && S.session.mode === "demo") { if (S.user) headers["X-Demo-User"] = S.user; }
+  else if (S.token) headers["Authorization"] = "Bearer " + S.token;
+  const init = body ? { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) } : { headers };
+  const res = await fetch(path, init);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const err = new Error(data.error || res.statusText); err.status = res.status; throw err; }
+  return data;
+}
+const GOOD = new Set(["executed", "delivered", "applied"]);
+const WARN = new Set(["pending_approval", "pending"]);
+const BAD = new Set(["denied", "refused", "invalid", "rejected", "failed", "dead", "stale"]);
+function pill(status, text) {
+  const cls = GOOD.has(status) ? "good" : WARN.has(status) ? "warn" : BAD.has(status) ? "bad" : "";
+  return h("span", { class: "pill " + cls }, text || String(status).replace("_", " "));
+}
+function roleLabel(role) { const r = (S.onto && S.onto.roles[role]) || {}; return r.label || role; }
+function show(value) {
+  if (value === "***") return h("span", { class: "masked", title: "hidden from your role" }, "•••••");
+  if (value === null || value === undefined) return h("span", { class: "muted" }, "–");
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (typeof value === "number") return value.toLocaleString("en-US");
+  return String(value);
+}
+function title(type, props) { return props.name || props.title || props.label || ""; }
+function route() { const [view, arg] = location.hash.replace(/^#\/?/, "").split("/"); return { view: view || "ontology", arg: arg ? decodeURIComponent(arg) : null }; }
+function go(view, arg) { location.hash = "#/" + view + (arg ? "/" + encodeURIComponent(arg) : ""); }
+
+// ------------------------------------------------------------------ shell
+const VIEWS = [["ontology", "Ontology"], ["data", "Data"], ["actions", "Actions"], ["approvals", "Approvals"], ["audit", "Audit log"]];
+
+async function boot() {
+  S.session = await api("/api/session");
+  document.title = S.session.ontology + " · nano-onto";
+  if (S.session.mode === "demo") {
+    const wanted = params.get("user") || sessionStorage.getItem("nano-onto-user");
+    S.user = (S.session.users.find(u => u.id === wanted) || S.session.users[0]).id;
+  }
+  window.addEventListener("hashchange", render);
+  await enter();
+}
+async function enter() {
+  try {
+    S.me = await api("/api/me");
+    S.onto = await api("/api/ontology");
+  } catch (err) {
+    if (err.status === 401) return signIn(S.token ? "That token was not accepted." : null);
+    throw err;
+  }
+  await render();
+}
+function signIn(message) {
+  const input = h("input", { type: "password", placeholder: "nonto_…", autocomplete: "off" });
+  const submit = async e => { e.preventDefault(); S.token = input.value.trim(); sessionStorage.setItem("nano-onto-token", S.token); await enter(); };
+  document.getElementById("app").replaceChildren(h("form", { class: "card pad signin", onsubmit: submit },
+    h("div", { class: "brand", style: "padding:0" }, "nano-onto"),
+    h("p", { class: "sub", style: "margin:6px 0 18px" }, "Sign in to ", h("b", {}, S.session.ontology), " with your access token. It decides who you act as."),
+    message && h("div", { class: "banner bad" }, message),
+    h("div", { class: "field" }, h("label", {}, "Access token"), input),
+    h("button", { class: "btn primary" }, "Sign in")));
+  input.focus();
+}
+async function render() {
+  const { view, arg } = route();
+  try { const a = await api("/api/approvals"); S.pending = a.inbox.length; S.approvals = a; } catch (err) { S.pending = 0; }
+  const side = h("aside", { class: "side" },
+    h("div", { class: "brand" }, "nano-onto"),
+    h("div", { class: "brand-sub" }, S.session.ontology + " · v" + S.session.version),
+    VIEWS.map(([id, label]) => h("button", { class: "nav" + (view === id ? " on" : ""), onclick: () => go(id) }, label,
+      id === "approvals" && S.pending ? h("span", { class: "count" }, S.pending) : null)),
+    h("div", { class: "who" }, h("label", {}, "Acting as"),
+      S.session.mode === "demo"
+        ? h("select", { onchange: async e => { S.user = e.target.value; sessionStorage.setItem("nano-onto-user", S.user); await enter(); } },
+            S.session.users.map(u => h("option", { value: u.id, selected: u.id === S.user }, u.id)))
+        : h("div", { class: "row between" }, h("b", {}, S.me.id),
+            h("button", { class: "btn", onclick: () => { sessionStorage.removeItem("nano-onto-token"); S.token = null; signIn(); } }, "Sign out")),
+      h("div", { class: "role" }, roleLabel(S.me.role), " ", h("span", { class: "tag mono" }, S.me.role)),
+      S.session.mode === "demo" && h("div", { class: "role muted" }, "Demo mode: no sign-in.")));
+  const main = h("main", {});
+  document.getElementById("app").replaceChildren(h("div", { class: "shell" }, side, main));
+  try {
+    main.append(await ({ ontology: viewOntology, data: viewData, actions: viewActions, approvals: viewApprovals, audit: viewAudit }[view] || viewOntology)(arg));
+  } catch (err) {
+    main.append(h("div", { class: "banner bad" }, err.message));
+  }
+}
+
+// --------------------------------------------------------------- ontology
+function viewOntology() {
+  const types = Object.entries(S.onto.object_types);
+  const out = (n) => S.onto.link_types.filter(l => l.from === n).length;
+  types.sort((a, b) => out(b[0]) - out(a[0]));
+  const W = 268, GAP = 150, pos = {}, cards = [];
+  types.forEach(([name, t], i) => {
+    const props = Object.entries(t.properties);
+    pos[name] = { x: 4 + i * (W + GAP) };
+    cards.push(h("div", { class: "card type" },
+      h("header", {}, h("div", { class: "row between" }, h("span", { class: "name" }, name),
+        t.count !== undefined ? h("span", { class: "tag" }, t.count + " objects") : null),
+        h("div", { class: "muted small" }, t.label || "")),
+      props.map(([p, spec]) => h("div", { class: "prop" },
+        h("span", {}, p, p === t.primary_key ? h("span", { class: "tag", style: "margin-left:6px" }, "key") : null,
+          spec.hidden ? h("span", { class: "tag", style: "margin-left:6px", title: "hidden from your role" }, "hidden") : null),
+        h("span", { class: "t" }, spec.enum ? spec.enum.join(" | ") : spec.type))),
+      t.row_filter ? h("footer", {}, "You only see rows where", h("br"), h("code", {}, t.row_filter)) : null));
+  });
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.innerHTML = '<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="currentColor" stroke-width="1.6"/></marker></defs>';
+  svg.style.color = "var(--muted)";
+  S.onto.link_types.forEach((l, i) => {
+    const a = pos[l.from], b = pos[l.to];
+    if (!a || !b || l.from === l.to) return;
+    const forward = a.x < b.x, y = 62 + i * 30;
+    const x1 = forward ? a.x + W : a.x, x2 = forward ? b.x : b.x + W;
+    const line = document.createElementNS(ns, "line");
+    Object.entries({ x1, y1: y, x2: x2 + (forward ? -3 : 3), y2: y, stroke: "currentColor", "stroke-width": 1.6, "marker-end": "url(#arr)" }).forEach(([k, v]) => line.setAttribute(k, v));
+    const label = document.createElementNS(ns, "text");
+    label.setAttribute("x", (x1 + x2) / 2); label.setAttribute("y", y - 8); label.setAttribute("text-anchor", "middle"); label.setAttribute("class", "edge-label");
+    label.textContent = l.name;
+    const card = document.createElementNS(ns, "text");
+    card.setAttribute("x", (x1 + x2) / 2); card.setAttribute("y", y + 17); card.setAttribute("text-anchor", "middle"); card.setAttribute("class", "edge-label"); card.setAttribute("opacity", ".7");
+    card.textContent = l.cardinality.replaceAll("_", " ");
+    svg.append(line, label, card);
+  });
+  const graph = h("div", { class: "graph" }, svg, cards);
+  const actions = Object.entries(S.onto.actions).map(([name, a]) => h("div", { class: "card pad" },
+    h("div", { class: "row between" }, h("h3", {}, a.label || name),
+      a.can_run ? pill("executed", "you may run this") : h("span", { class: "pill plain" }, "not your role")),
+    h("div", { class: "mono muted", style: "margin:2px 0 8px" }, name),
+    a.description && h("p", { style: "margin-bottom:8px;color:var(--ink2)" }, a.description),
+    h("div", { class: "row small", style: "margin-bottom:8px" }, h("span", { class: "muted" }, "Allowed roles"),
+      (a.allowed_roles || ["everyone"]).map(r => h("span", { class: "tag" }, roleLabel(r)))),
+    a.rules.length ? a.rules.map(ruleRow) : h("div", { class: "muted small", style: "padding:8px 0;border-top:1px solid var(--line)" }, "No rules beyond the role check."),
+    h("div", { class: "row between", style: "margin-top:10px" },
+      h("span", { class: "muted small mono" }, a.effects.join("  →  ")),
+      h("button", { class: "btn", onclick: () => go("actions", name) }, "Open"))));
+  return h("div", {},
+    h("h1", {}, "Ontology"),
+    h("p", { class: "sub" }, "What exists, what may happen, and under which rules — as ", h("b", {}, S.me.id), " (", roleLabel(S.me.role), ") may see it."),
+    h("h2", { style: "margin-top:0" }, "Object types and links"), h("div", { style: "overflow-x:auto" }, graph),
+    h("h2", {}, "Actions"), h("div", { class: "grid cols" }, actions));
+}
+function outcomeChip(rule) {
+  if (rule.outcome === "deny") return pill("denied", "deny");
+  if (rule.outcome === "warn") return h("span", { class: "pill" }, "warn");
+  return pill("pending", "approval: " + roleLabel(rule.role));
+}
+function ruleRow(rule) {
+  return h("div", { class: "rule" }, h("div", { class: "cond" }, outcomeChip(rule), h("span", {}, "if ", h("code", {}, rule.when))),
+    rule.message && h("div", { class: "msg" }, rule.message),
+    rule.source && rule.source.quote && h("div", { class: "src" }, "“" + rule.source.quote + "”" + (rule.source.doc ? " — " + rule.source.doc : "")));
+}
+
+// ------------------------------------------------------------------- data
+async function viewData(arg) {
+  const names = Object.keys(S.onto.object_types);
+  const [type, id] = (arg || names[0] || "").split(":");
+  if (!S.onto.object_types[type]) return h("div", { class: "empty" }, "Nothing your role may read.");
+  const spec = S.onto.object_types[type], cols = Object.keys(spec.properties);
+  const rows = await api("/api/objects?type=" + encodeURIComponent(type));
+  let detail = h("div", { class: "card empty" }, "Select a row to see its links.");
+  if (id) {
+    try {
+      const o = await api(`/api/object?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+      detail = h("div", { class: "card pad" }, h("div", { class: "muted small" }, type), h("h3", { style: "margin-bottom:12px" }, o.id + (title(type, o.properties) ? " · " + title(type, o.properties) : "")),
+        h("dl", {}, Object.entries(o.properties).map(([k, v]) => [h("dt", {}, k), h("dd", {}, show(v))])),
+        Object.entries(o.links).map(([link, ids]) => h("div", { style: "margin-top:14px" }, h("div", { class: "muted small" }, link + " →"),
+          ids.length ? ids.map(t => h("button", { class: "btn", style: "margin:4px 6px 0 0", onclick: () => go("data", linkTarget(link) + ":" + t) }, t)) : h("span", { class: "muted" }, "none you may see"))));
+    } catch (err) { detail = h("div", { class: "card empty" }, "Not found, or hidden from your role."); }
+  }
+  return h("div", {},
+    h("h1", {}, "Data"),
+    h("p", { class: "sub" }, "Exactly what your role may read. Hidden rows are simply absent; hidden values show as ", h("span", { class: "masked" }, "•••••"), "."),
+    h("div", { class: "tabs" }, names.map(n => h("button", { class: "tab" + (n === type ? " on" : ""), onclick: () => go("data", n) }, n))),
+    h("div", { class: "split" },
+      h("div", { class: "card", style: "overflow-x:auto" }, rows.length ? h("table", {},
+        h("thead", {}, h("tr", {}, cols.map(c => h("th", {}, spec.properties[c].label || c)))),
+        h("tbody", {}, rows.map(r => h("tr", { class: "click" + (String(r[spec.primary_key]) === id ? " sel" : ""), onclick: () => go("data", type + ":" + r[spec.primary_key]) },
+          cols.map(c => h("td", {}, c === "status" && r[c] ? h("span", { class: "tag" }, r[c]) : show(r[c]))))))) : h("div", { class: "empty" }, "No " + type + " objects you may see.")),
+      detail));
+}
+function linkTarget(link) { const l = S.onto.link_types.find(x => x.name === link); return l ? l.to : ""; }
+
+// ---------------------------------------------------------------- actions
+async function viewActions(arg) {
+  const names = Object.keys(S.onto.actions), name = S.onto.actions[arg] ? arg : names[0];
+  const action = S.onto.actions[name], inputs = {}, result = h("div", {});
+  const fields = [];
+  for (const p of action.parameters) {
+    let input;
+    if (p.type === "object_ref") {
+      const rows = await api("/api/objects?type=" + encodeURIComponent(p.object_type)).catch(() => []);
+      const pk = (S.onto.object_types[p.object_type] || {}).primary_key;
+      input = h("select", {}, h("option", { value: "" }, "Choose a " + p.object_type + "…"),
+        rows.map(r => h("option", { value: r[pk] }, r[pk] + (title(p.object_type, r) ? " — " + title(p.object_type, r) : ""))));
+    } else if (p.enum) input = h("select", {}, h("option", { value: "" }, "…"), p.enum.map(v => h("option", { value: v }, v)));
+    else if (p.type === "boolean") input = h("select", {}, h("option", { value: "" }, "…"), h("option", { value: "true" }, "yes"), h("option", { value: "false" }, "no"));
+    else input = h("input", { type: p.type === "date" ? "date" : "text", inputmode: p.type === "number" || p.type === "integer" ? "decimal" : null,
+      placeholder: p.default !== null && p.default !== undefined ? "default: " + p.default : p.type });
+    inputs[p.name] = input;
+    fields.push(h("div", { class: "field" }, h("label", {}, p.name, p.required ? "" : h("span", { class: "muted" }, "  (optional)")), input,
+      p.description && h("div", { class: "hint" }, p.description)));
+  }
+  const prefill = JSON.parse(sessionStorage.getItem("nano-onto-form:" + name) || "{}");
+  for (const [k, v] of Object.entries(prefill)) if (inputs[k]) inputs[k].value = v;
+  const call = async (path) => {
+    const values = Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value]).filter(([, v]) => v !== ""));
+    sessionStorage.setItem("nano-onto-form:" + name, JSON.stringify(values));
+    try { result.replaceChildren(resultCard(await api(path, { action: name, params: values }))); }
+    catch (err) { result.replaceChildren(h("div", { class: "banner bad" }, err.message)); }
+    if (path === "/api/run") { const a = await api("/api/approvals").catch(() => null); if (a) S.approvals = a; }
+  };
+  return h("div", {},
+    h("h1", {}, "Actions"),
+    h("p", { class: "sub" }, "The only way to change data. Every action is checked against its rules; a dry run shows which would fire without changing anything."),
+    h("div", { class: "split wide" },
+      h("div", { class: "card list" }, names.map(n => h("button", { class: n === name ? "on" : "", onclick: () => go("actions", n) },
+        h("div", { style: "font-weight:600" }, S.onto.actions[n].label || n), h("div", { class: "mono muted" }, n)))),
+      h("div", { class: "grid" },
+        h("div", { class: "card pad" },
+          h("div", { class: "row between", style: "margin-bottom:12px" }, h("h3", {}, action.label || name),
+            action.can_run ? null : h("span", { class: "pill bad plain" }, "your role may not run this")),
+          fields.length ? fields : h("p", { class: "muted", style: "margin-bottom:14px" }, "This action takes no parameters."),
+          h("div", { class: "row" }, h("button", { class: "btn", onclick: () => call("/api/explain") }, "Dry run"),
+            h("button", { class: "btn primary", onclick: () => call("/api/run") }, "Run"))),
+        result,
+        h("div", { class: "card pad" }, h("h3", { style: "margin-bottom:4px" }, "Rules"),
+          action.rules.length ? action.rules.map(ruleRow) : h("div", { class: "muted small" }, "No rules beyond the role check.")))));
+}
+const HEADLINE = {
+  executed: "Done. The change has been made.", pending_approval: "Held for approval. Nothing has changed yet.",
+  denied: "Denied. Nothing has changed.", invalid: "Not carried out. Nothing has changed.", rejected: "Rejected.",
+};
+function resultCard(r) {
+  const dry = r.dry_run;
+  return h("div", { class: "card pad" },
+    h("div", { class: "row", style: "margin-bottom:6px" }, pill(r.status), dry && h("span", { class: "tag" }, "dry run"),
+      h("b", {}, dry ? (r.status === "executed" ? "All rules pass. It would be carried out." : r.status === "pending_approval" ? "It would be held for approval." : HEADLINE[r.status]) : HEADLINE[r.status])),
+    r.messages.filter(m => !m.startsWith("dry run")).map(m => h("div", { style: "color:var(--ink2)" }, "• " + m)),
+    r.request_id && !dry && h("div", { style: "margin-top:8px" }, "Request ", h("code", {}, r.request_id), " is waiting for ",
+      r.required_approvals.map(x => h("span", { class: "tag", style: "margin-right:4px" }, roleLabel(x)))),
+    Object.entries(r.created || {}).map(([alias, id]) => h("div", { style: "margin-top:8px" }, "Created ", h("code", {}, id))),
+    (r.updated || []).map(u => h("div", { style: "margin-top:8px" }, "Updated ", h("code", {}, u))),
+    r.trace.length ? h("div", { class: "trace" }, h("div", { class: "muted small", style: "margin-top:12px" }, "Rule trace"),
+      r.trace.map(t => h("div", { class: "t" },
+        h("span", { class: "dot " + (!t.fired ? "" : t.outcome === "deny" ? "deny" : t.outcome === "warn" || /satisfied/.test(t.outcome) ? "ok" : "approval") }),
+        h("div", {}, h("span", { class: "mono" }, t.rule), "  ", h("code", {}, t.when), t.fired ? h("span", { style: "margin-left:8px;font-weight:600" }, "→ " + t.outcome) : h("span", { class: "muted", style: "margin-left:8px" }, "did not fire"),
+          t.fired && t.source && t.source.quote ? h("div", { class: "muted small", style: "font-style:italic" }, "“" + t.source.quote + "”") : null)))) : null);
+}
+
+// -------------------------------------------------------------- approvals
+function requestCard(r, decide) {
+  const reason = h("input", { placeholder: "Reason (for a rejection)", style: "flex:1;min-width:160px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)" });
+  const label = (S.onto.actions[r.action] || {}).label || r.action;
+  return h("div", { class: "card pad" },
+    h("div", { class: "row between" }, h("h3", {}, label), h("code", {}, r.id)),
+    h("div", { class: "muted small", style: "margin:2px 0 10px" }, "requested by ", h("b", {}, r.actor.id), " (", roleLabel(r.actor.role), ") · ", r.created_at.slice(0, 16).replace("T", " ")),
+    h("div", { style: "margin-bottom:8px" }, Object.entries(r.params).map(([k, v]) => h("span", { class: "kv" }, h("b", {}, k), show(v)))),
+    r.reasons.map(m => h("div", { class: "small", style: "color:var(--ink2)" }, "• " + m)),
+    h("div", { class: "row small", style: "margin:10px 0 12px" }, h("span", { class: "muted" }, "Sign-offs"),
+      r.required_roles.map(role => r.approved_by[role] ? pill("executed", roleLabel(role) + ": " + r.approved_by[role]) : pill("pending", roleLabel(role) + ": waiting"))),
+    decide && h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => decide("/api/approve", { request_id: r.id }) }, "Approve"),
+      h("button", { class: "btn danger", onclick: () => decide("/api/reject", { request_id: r.id, reason: reason.value }) }, "Reject"), reason));
+}
+async function viewApprovals() {
+  const a = S.approvals || await api("/api/approvals"), note = h("div", {});
+  const decide = async (path, body) => {
+    try { const r = await api(path, body); sessionStorage.setItem("nano-onto-flash", JSON.stringify(r)); await render(); }
+    catch (err) { note.replaceChildren(h("div", { class: "banner bad" }, err.message)); }
+  };
+  const flash = sessionStorage.getItem("nano-onto-flash");
+  if (flash) { sessionStorage.removeItem("nano-onto-flash"); note.append(resultCard(JSON.parse(flash)), h("div", { style: "height:16px" })); }
+  return h("div", {},
+    h("h1", {}, "Approvals"),
+    h("p", { class: "sub" }, "Requests that rules have held for a sign-off. Nobody can approve their own request, and the rules are checked again when the last approval arrives."),
+    note,
+    h("h2", { style: "margin-top:0" }, "Waiting for " + roleLabel(S.me.role)),
+    a.inbox.length ? h("div", { class: "grid cols" }, a.inbox.map(r => requestCard(r, decide))) : h("div", { class: "card empty" }, "Nothing is waiting for your role."),
+    a.own_waiting.length ? h("p", { class: "muted small", style: "margin-top:10px" }, a.own_waiting.length + " of your own request(s) also need your role; someone else has to approve them.") : null,
+    h("h2", {}, "Your requests"),
+    a.mine.length ? h("div", { class: "card" }, h("table", {}, h("thead", {}, h("tr", {}, ["Request", "Action", "Status", "Sign-offs", "Updated"].map(c => h("th", {}, c)))),
+      h("tbody", {}, a.mine.map(r => h("tr", {}, h("td", {}, h("code", {}, r.id)), h("td", {}, (S.onto.actions[r.action] || {}).label || r.action),
+        h("td", {}, pill(r.status)),
+        h("td", {}, r.required_roles.map(role => h("span", { class: "tag", style: "margin-right:4px" }, roleLabel(role) + (r.approved_by[role] ? " ✓" : " …")))),
+        h("td", { class: "muted" }, r.updated_at.slice(0, 16).replace("T", " "))))))) : h("div", { class: "card empty" }, "You have not submitted anything that needed approval."));
+}
+
+// ------------------------------------------------------------------ audit
+async function viewAudit() {
+  const a = await api("/api/audit");
+  const body = h("tbody", {});
+  for (const r of a.rows) {
+    const more = h("tr", { hidden: true }, h("td", { colspan: 6 }, h("pre", {}, JSON.stringify(r.detail, null, 2))));
+    body.append(h("tr", { class: "click", onclick: () => { more.hidden = !more.hidden; } },
+      h("td", { class: "muted" }, r.seq), h("td", { class: "muted", style: "white-space:nowrap" }, r.ts.slice(0, 19).replace("T", " ")),
+      h("td", {}, h("b", {}, r.actor), " ", h("span", { class: "muted" }, r.role)), h("td", {}, r.event),
+      h("td", { class: "mono" }, r.action || "–"), h("td", {}, pill(r.outcome), r.detail.request_id ? h("code", { style: "margin-left:8px" }, r.detail.request_id) : null)), more);
+  }
+  return h("div", {},
+    h("h1", {}, "Audit log"),
+    h("p", { class: "sub" }, "Every attempt — executed, held, denied, refused, even dry runs — written in the same transaction as the change it describes."),
+    h("div", { class: "banner" }, a.scope === "all" ? "Your role may read the whole log." : "You see your own entries. Auditor roles see everyone's."),
+    a.rows.length ? h("div", { class: "card", style: "overflow-x:auto" }, h("table", {},
+      h("thead", {}, h("tr", {}, ["#", "Time (UTC)", "Who", "Event", "Action", "Outcome"].map(c => h("th", {}, c)))), body)) : h("div", { class: "card empty" }, "Nothing yet."));
+}
+
+boot().catch(err => { document.getElementById("app").replaceChildren(h("div", { class: "banner bad", style: "margin:40px" }, err.message)); });
+</script>
+</body>
+</html>

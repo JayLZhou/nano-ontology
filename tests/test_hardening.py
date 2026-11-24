@@ -94,8 +94,8 @@ def test_invalid_yaml_is_a_schema_error(tmp_path):
 
 
 def test_rule_source_may_be_a_plain_string():
-    eng = make_engine(lambda d: d["action_types"]["submit_purchase_order"]["rules"][0].update(source="制度.md"))
-    assert submit(eng, 1, supplier="S-003").trace[0]["source"] == {"doc": "制度.md"}
+    eng = make_engine(lambda d: d["action_types"]["submit_purchase_order"]["rules"][0].update(source="policy.md"))
+    assert submit(eng, 1, supplier="S-003").trace[0]["source"] == {"doc": "policy.md"}
 
 
 # ----------------------------------------------------------------- expressions

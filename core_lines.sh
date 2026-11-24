@@ -2,7 +2,7 @@
 # Count non-blank, non-comment lines in the nano_onto package.
 # "core" is what every deployment runs; "optional" modules are only imported when used.
 cd "$(dirname "$0")"
-optional="http_server.py migrate.py tables.py webhooks.py"
+optional="http_server.py migrate.py tables.py webhooks.py console.py"
 core=0; extra=0
 for f in nano_onto/*.py; do
   n=$(grep -cvE '^\s*(#|$)' "$f")

@@ -13,7 +13,14 @@ Roadmap features:
 - **HTTP MCP transport** with per-user bearer tokens (`nano-onto serve-http`, `nano-onto token`).
 - **Benchmark harness** in `benchmark/`.
 
+- **Web console** for people (`nano-onto console`): the ontology drawn out, data as your role may see it,
+  action forms with dry runs, an approvals inbox and the audit log. One static page and a small JSON API
+  on the same engine; token sign-in, or `--demo` users on localhost.
+
 Documentation and tooling:
+
+- The procurement example, its seed data and the benchmark tasks are now in English. The published
+  benchmark numbers were measured on the earlier Chinese wording (kept as `*.zh.json`).
 
 - README rewritten around a showcase of real output; new `docs/` (walkthrough in English and Chinese,
   ontology reference, agent setup, CLI reference, architecture) and `examples/walkthrough.sh`, which runs

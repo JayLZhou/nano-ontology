@@ -32,9 +32,9 @@ webhooks: {...}          # optional
 
 ```yaml
 roles:
-  employee:     {label: 员工}
-  dept_manager: {label: 部门经理, description: ...}
-  cfo:          {label: 财务总监}
+  employee:     {label: Employee}
+  dept_manager: {label: Department manager, description: ...}
+  cfo:          {label: CFO}
 ```
 
 If roles are declared, an actor whose role is not in the list is refused everywhere. Roles are flat: there is no inheritance, so list every role that may run an action.
@@ -44,13 +44,13 @@ If roles are declared, an actor whose role is not in the list is refused everywh
 ```yaml
 object_types:
   PurchaseOrder:
-    label: 采购单
+    label: Purchase order
     description: ...
     primary_key: po_id          # defaults to the first property
     id_prefix: PO-              # generated ids look like PO-0001; integer keys get the next free number
     properties:
       po_id:     {type: string, required: true}
-      title:     {type: string, required: true, label: 标题}
+      title:     {type: string, required: true, label: Title}
       amount:    {type: number, required: true}
       status:    {type: string, enum: [approved, paid, cancelled], default: approved}
       requester: string         # shorthand for {type: string}
@@ -68,7 +68,7 @@ object_types:
 
 Object-type keys beyond those shown: `readable_by` and `visible_when` ([Read permissions](#read-permissions)), `source` ([read-through](#existing-tables-read-through)) and `renamed_from`.
 
-Values are coerced on the way in: `"8000"` becomes `8000`, `"true"` / `"是"` become `True`. Numbers must be finite; integers are parsed exactly.
+Values are coerced on the way in: `"8000"` becomes `8000`, `"true"` / `"yes"` become `True`. Numbers must be finite; integers are parsed exactly.
 
 ## Link types
 
@@ -78,7 +78,7 @@ link_types:
     from: PurchaseOrder
     to: Supplier
     cardinality: many_to_one     # default; also one_to_one, one_to_many, many_to_many
-    label: 供应商
+    label: Supplier
 ```
 
 A link is followed in expressions by its name, from the `from` side: `params.po.supplier.rating`. Cardinality is enforced when links are written: a new `many_to_one` link replaces the previous one from the same object, and `one_to_one` / `one_to_many` also free the target. A link cannot share a name with a property of its `from` type.
@@ -88,8 +88,8 @@ A link is followed in expressions by its name, from the `from` side: `params.po.
 ```yaml
 action_types:
   submit_purchase_order:
-    label: 提交采购单
-    description: 创建一张采购单。金额较大时会先进入审批。
+    label: Submit a purchase order
+    description: Create a purchase order. Larger amounts are held for approval first.
     allowed_roles: [employee, dept_manager, cfo]     # omit to allow every role; [] allows nobody
     parameters: {...}
     rules: [...]
@@ -102,7 +102,7 @@ Action names become MCP tool names, so they must match `[A-Za-z_][A-Za-z0-9_-]*`
 
 ```yaml
 parameters:
-  title:    {type: string, description: 采购内容}
+  title:    {type: string, description: What is being bought}
   amount:   {type: number}
   supplier: {type: object_ref, object_type: Supplier}
   note:     {type: string, required: false}
@@ -121,16 +121,16 @@ rules:
   - id: no_blacklisted_supplier
     when: params.supplier.blacklisted
     then: deny
-    message: 不得向黑名单供应商采购
+    message: Blacklisted suppliers cannot be used
   - id: cfo_over_50k
     when: params.amount > 50000
     then: {require_approval: cfo}
-    message: 单笔超过 5 万元须财务总监审批
-    source: {doc: 采购管理制度.md, quote: "单笔采购金额超过50000元的，须经财务总监审批。"}
+    message: Order exceeds 50,000
+    source: {doc: procurement-policy.md, quote: "A single purchase above 50,000 requires approval by the CFO."}
   - id: warn_rating_c
     when: params.supplier.rating == 'C'
     then: warn
-    message: 该供应商评级为 C，请注意交付风险
+    message: This supplier is rated C; expect delivery risk
 ```
 
 Every rule is evaluated; `when` is an [expression](#expressions) over `params` and `actor`.

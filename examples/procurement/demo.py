@@ -30,36 +30,35 @@ def show(title, res):
     return res
 
 
-show("1. Alice 买 8000 元文具（无需审批）",
-     engine.execute("submit_purchase_order", {"title": "文具", "amount": 8000, "supplier": "S-001"}, alice))
+def order(title, amount, supplier, actor=alice):
+    return engine.execute("submit_purchase_order", {"title": title, "amount": amount, "supplier": supplier}, actor)
 
-show("2. Alice 向黑名单供应商下单",
-     engine.execute("submit_purchase_order", {"title": "电容", "amount": 3000, "supplier": "S-003"}, alice))
 
-big = show("3. Alice 买 6 万元服务器（需部门经理 + 财务总监）",
-           engine.execute("submit_purchase_order", {"title": "服务器 2 台", "amount": 60000, "supplier": "S-002"}, alice))
+show("1. Alice orders 8,000 of stationery (no approval needed)", order("Stationery", 8000, "S-001"))
+show("2. Alice orders from a blacklisted supplier", order("Chips", 4800, "S-003"))
+big = show("3. Alice orders 60,000 of servers (department manager + CFO must approve)", order("Servers", 60000, "S-002"))
 
-print("\n== 4. Alice 想自己批")
+print("\n== 4. Alice tries to approve it herself")
 try:
     engine.approve(big.request_id, Actor("alice", "cfo"))
 except ActionError as exc:
     print(f"   blocked: {exc}")
 
-show("5. Bob（部门经理）批准", engine.approve(big.request_id, bob))
-show("6. Carol（财务总监）批准 -> 真正执行", engine.approve(big.request_id, carol))
+show("5. Bob (department manager) approves", engine.approve(big.request_id, bob))
+show("6. Carol (CFO) approves -> now it really happens", engine.approve(big.request_id, carol))
 
-show("7. Alice 取消 Dave 的采购单（她看不到这张单，对她来说等同于不存在）",
+show("7. Alice cancels Dave's order (she cannot see it, so to her it does not exist)",
      engine.execute("cancel_purchase_order", {"po": "PO-0002"}, alice))
-show("7b. Bob 看得到这张单，但规则不允许他取消别人的单",
+show("7b. Bob can see it, but the rules do not let him cancel someone else's order",
      engine.execute("cancel_purchase_order", {"po": "PO-0002"}, bob))
-show("8. Alice 拉黑供应商（无权限）", engine.execute("blacklist_supplier", {"supplier": "S-002"}, alice))
+show("8. Alice blacklists a supplier (not her role)", engine.execute("blacklist_supplier", {"supplier": "S-002"}, alice))
 
-print("\n== 9. 同一个查询，不同的人看到不同的结果（行级 + 字段级权限）")
+print("\n== 9. The same query, different answers (row- and property-level permissions)")
 for who in (alice, carol):
     orders = [po["po_id"] for po in engine.query("PurchaseOrder", actor=who)]
     account = engine.get("Supplier", "S-001", actor=who)["properties"]["bank_account"]
-    print(f"   {who.id:>5} ({who.role}): 采购单 {orders}  S-001 收款账号 {account}")
+    print(f"   {who.id:>5} ({who.role}): orders {orders}  S-001 bank account {account}")
 
-print("\n== 审计日志")
+print("\n== Audit log")
 for row in engine.store.audit_log():
     print(f"   {row['actor']:>6} ({row['role']}) {row['event']:<8} {row['action'] or '':<24} -> {row['outcome']}")

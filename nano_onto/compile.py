@@ -28,7 +28,7 @@ def action_input_schema(action: ActionType, onto: Ontology) -> dict[str, Any]:
     for name, spec in action.parameters.items():
         if spec.type == "object_ref":
             ot = onto.object_types[spec.object_type]  # type: ignore[index]
-            label = f" ({ot.label})" if ot.label else ""
+            label = f" ({ot.label})" if _adds(ot.label, ot.name) else ""
             schema = {"type": "string", "description": f"ID ({ot.primary_key}) of a {ot.name}{label}"}
         else:
             schema = dict(_JSON_TYPES[spec.type])
@@ -42,6 +42,12 @@ def action_input_schema(action: ActionType, onto: Ontology) -> dict[str, Any]:
         if spec.required:
             required.append(name)
     return {"type": "object", "properties": props, "required": required, "additionalProperties": False}
+
+
+def _adds(label: str | None, name: str) -> bool:
+    """A label is worth showing only if it says more than the name does."""
+    squash = lambda text: "".join(c for c in text.lower() if c.isalnum())  # noqa: E731
+    return bool(label) and squash(label) != squash(name)
 
 
 def _rule_line(rule, onto: Ontology) -> str:
@@ -78,7 +84,7 @@ def render_skill(onto: Ontology, schema_path: str = "ontology.yaml", db_path: st
     if "://" in db_path and "@" in db_path:  # a database URL with credentials does not belong in a skill file
         db_path = "$NANO_ONTO_DB"
     name = (re.sub(r"[^a-z0-9]+", "-", onto.name.lower()).strip("-") or "business")[:55] + "-ontology"
-    types = ", ".join(f"{ot.name}" + (f" ({ot.label})" if ot.label else "") for ot in onto.object_types.values())
+    types = ", ".join(f"{ot.name}" + (f" ({ot.label})" if _adds(ot.label, ot.name) else "") for ot in onto.object_types.values())
     description = (
         f"Read and change {onto.name} business data ({types}) only through ontology actions "
         "that enforce permissions, business rules and approvals. Use whenever the user asks to look up "
@@ -118,7 +124,7 @@ def render_skill(onto: Ontology, schema_path: str = "ontology.yaml", db_path: st
         props = ", ".join(
             p.name + (f"={p.label}" if p.label else "") for p in ot.properties.values()
         )
-        out.append(f"- **{ot.name}**" + (f" ({ot.label})" if ot.label else "") + f": {props}")
+        out.append(f"- **{ot.name}**" + (f" ({ot.label})" if _adds(ot.label, ot.name) else "") + f": {props}")
     out += ["", "## Actions", ""]
     for action in onto.action_types.values():
         out.append(f"### `{action.name}`" + (f" -- {action.label}" if action.label else ""))

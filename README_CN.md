@@ -35,7 +35,8 @@
 - **模型说不动的规则：** 规则是确定性的表达式，由代码判定。在我们的基准测试里，规则只写在 prompt 中时，模型在 43% 的轮次里违规，用户一施压就全部违规；用 nano-onto 时是 0%。
 - **审批、权限、审计都内置：** 多角色审批与职责分离、行级和字段级读权限、每一次尝试的审计记录——包括被拦下的尝试，以及是哪条规则拦下的。
 - **接你现有的 agent 和数据库：** 一个 MCP server（stdio 或 HTTP）接 Claude Desktop、Claude Code、Cursor、nanobot 或你自己的 agent。默认 SQLite，支持 PostgreSQL 和 DuckDB，也可以把本体映射到已有的表上，数据留在原处。
-- **小到读得完：** 核心约 2500 行，唯一依赖 PyYAML。运行 `bash core_lines.sh` 自己数。
+- **也给人一个控制台：** 同一个引擎还提供 Web 控制台——画出来的本体、按你的角色可见的数据、带试运行的动作表单、审批收件箱和审计日志——不需要前端构建，也没有额外依赖。
+- **小到读得完：** 核心约 2500 行，唯一依赖 PyYAML；可选模块（直读已有表、迁移、Webhook、HTTP、控制台）另加约 900 行和一个 HTML 页面。运行 `bash core_lines.sh` 自己数。
 
 ## 从这里开始
 
@@ -46,6 +47,7 @@
 | 给自己的业务写本体 | [本体参考](./docs/ontology-reference.md) |
 | 接到 Claude Desktop、Claude Code、Cursor 或自己的 agent 上 | [接入 agent](./docs/agents.md) |
 | 放在一个已有的数据库前面 | [直读已有表](./docs/ontology-reference.md#existing-tables-read-through) |
+| 在浏览器里用 | [控制台](./docs/console.md) |
 | 查某条命令 | [CLI 参考](./docs/cli-reference.md) |
 | 了解原理和限制 | [架构](./docs/architecture.md) |
 | 量化它带来了什么 | [Benchmark](./benchmark/README.md) |
@@ -91,7 +93,7 @@ python examples/procurement/demo.py
 2. 提一个规则不会直接放行的请求——员工要买 6 万元的服务器。
 
    ```bash
-   nano-onto run submit_purchase_order -p title=服务器 -p amount=60000 -p supplier=S-002 --actor alice --role employee
+   nano-onto run submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
    ```
 
    采购单**不会**被创建，而是成为一条需要部门经理和财务总监都批准的请求。
@@ -102,7 +104,9 @@ python examples/procurement/demo.py
    nano-onto serve-mcp --actor alice --role employee
    ```
 
-然后一次跑完整个流程——试运行、审批、读权限、审计日志、在审核下改规则、MCP（stdio 与 HTTP）、导出 Skill：
+更想用浏览器？运行 `nano-onto console --demo alice:employee --demo bob:dept_manager --demo carol:cfo`，然后打开 http://127.0.0.1:8787。
+
+然后一次跑完整个流程——试运行、审批、读权限、审计日志、在审核下改规则、MCP（stdio 与 HTTP）、导出 Skill、控制台：
 
 ```bash
 bash examples/walkthrough.sh
@@ -152,7 +156,7 @@ from nano_onto import Actor, Engine, Ontology, open_store
 onto = Ontology.load("examples/procurement/ontology.yaml")
 engine = Engine(onto, open_store("shop.db", onto))
 
-res = engine.execute("submit_purchase_order", {"title": "服务器", "amount": 60000, "supplier": "S-002"},
+res = engine.execute("submit_purchase_order", {"title": "Servers", "amount": 60000, "supplier": "S-002"},
                      Actor("alice", "employee"))
 res.status        # executed | pending_approval | denied | invalid
 res.trace         # 哪些规则触发了，附原文出处
@@ -165,14 +169,43 @@ engine.query("PurchaseOrder", actor=Actor("alice", "employee"))   # 按权限读
 
 ## 🎬 看它怎么工作
 
-下面的内容都是真实输出：录下来的模型对话和终端会话，由 [`scripts/readme_assets.py`](./scripts/readme_assets.py) 重新生成。
+下面的内容都是真实的：控制台截图和终端会话，用的是 [`examples/procurement`](./examples/procurement) 里的示例，由 [`scripts/`](./scripts) 下的脚本重新生成。
+
+### 给人用的控制台
+
+agent 通过 MCP 操作；人则有一个 Web 控制台，背后是同一个引擎。选一个动作、填表，试运行会明确告诉你哪些规则会触发、每条规则出自哪里——在任何数据改变之前。
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="images/same-request-dark.svg">
-    <img src="images/same-request-light.svg" alt="同一个请求、同一个模型：数据库工具 vs. nano-onto 工具" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="images/console-action-dark.png">
+    <img src="images/console-action-light.png" alt="控制台：试运行一张采购单，显示会触发的两条审批规则及其原文出处" width="100%">
   </picture>
 </p>
+
+本体按"对你生效的样子"画出来：类型和关系、对你隐藏的字段、行级过滤，以及每个动作和它的规则。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/console-ontology-dark.png">
+    <img src="images/console-ontology-light.png" alt="控制台：本体视图，包含对象类型、关系，以及带规则的动作" width="100%">
+  </picture>
+</p>
+
+审批人有收件箱，每个人都能看到自己申请的状态，审计日志记录每一次尝试。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/console-approvals-dark.png">
+    <img src="images/console-approvals-light.png" alt="控制台：审批收件箱，一条请求等待两个角色签字" width="100%">
+  </picture>
+</p>
+
+```bash
+nano-onto console --demo alice:employee --demo bob:dept_manager --demo carol:cfo --auditor cfo   # 本地试用，免登录
+nano-onto console --tokens tokens.yaml --auditor cfo                                              # 正式使用：一人一个 token
+```
+
+→ [控制台](./docs/console.md)
 
 ### 模型说不动的规则
 
@@ -185,7 +218,7 @@ engine.query("PurchaseOrder", actor=Actor("alice", "employee"))   # 按权限读
   </picture>
 </p>
 
-这只是一个小模型在一个小领域上的结果，每个对照臂 81 轮——请当作方向，而不是排行榜。
+这只是一个小模型在一个小领域上的结果，每个对照臂 81 轮——请当作方向，而不是排行榜。图中这次运行用的是同样 27 个请求早先的中文表述；用英文表述的重跑尚未完成。
 
 → [Benchmark：方法、数字、注意事项](./benchmark/README.md)
 
@@ -253,11 +286,12 @@ action_types:
       - id: no_blacklisted_supplier
         when: params.supplier.blacklisted          # 沿着对象关系读取
         then: deny
-        message: 不得向黑名单供应商采购
+        message: Blacklisted suppliers cannot be used
       - id: cfo_over_50k
         when: params.amount > 50000
         then: {require_approval: cfo}
-        source: {doc: 采购管理制度.md, quote: "单笔采购金额超过50000元的，须经财务总监审批。"}
+        message: Order exceeds 50,000
+        source: {doc: procurement-policy.md, quote: "A single purchase above 50,000 requires approval by the CFO."}
     effects:
       - create: PurchaseOrder
         as: po
@@ -284,15 +318,11 @@ action_types:
 
 - **上手：** [完整流程](./docs/walkthrough_cn.md) · [Walkthrough (English)](./docs/walkthrough.md) · [`examples/walkthrough.sh`](./examples/walkthrough.sh)
 - **为业务建模：** [本体参考](./docs/ontology-reference.md) · [读权限](./docs/ontology-reference.md#read-permissions) · [直读已有表](./docs/ontology-reference.md#existing-tables-read-through) · [Webhook](./docs/ontology-reference.md#webhooks) · [迁移](./docs/ontology-reference.md#changing-the-ontology)
-- **运行：** [接入 agent](./docs/agents.md) · [CLI 参考](./docs/cli-reference.md)
+- **运行：** [接入 agent](./docs/agents.md) · [控制台](./docs/console.md) · [CLI 参考](./docs/cli-reference.md)
 - **原理：** [架构](./docs/architecture.md) · [Benchmark](./benchmark/README.md) · [更新日志](./CHANGELOG.md)
 - **示例：** [`examples/procurement`](./examples/procurement) · [`examples/erp_readthrough`](./examples/erp_readthrough)
 
 参考类文档目前只有英文版。
-
-## 本体从哪来？
-
-手写 YAML 适合 demo。真实场景用姊妹项目 **Ontology-Anything**：读制度、SOP、合同和表格，提出对象类型、动作和规则（**每条带原文引用**），标出文件之间的冲突，人工审核通过后直接产出 nano-onto 本体。YAML 中以 `x-` 开头的键在任何位置都会被忽略，方便这类工具附带审核元数据。
 
 ## 路线图
 
@@ -302,6 +332,7 @@ action_types:
 - [x] 本体版本管理与受审核的迁移
 - [x] HTTP MCP 与按用户的 token
 - [x] Benchmark 框架与第一组模型结果
+- [x] 给人用的 Web 控制台
 - [ ] 更多模型的 Benchmark 数字
 - [ ] 行级过滤下推到 SQL；直读支持联合主键
 - [ ] HTTP 传输支持 OAuth 与 SSE
