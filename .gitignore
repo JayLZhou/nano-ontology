@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.DS_Store
+
+# local data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.duckdb
+*.duckdb.wal
+tokens.yaml
+skill/
+skills/
+benchmark/results/*.log
+benchmark/results/*.stderr

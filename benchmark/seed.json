@@ -1,0 +1,22 @@
+{
+  "objects": {
+    "Supplier": [
+      {"supplier_id": "S-001", "name": "联华办公", "rating": "A", "blacklisted": false, "bank_account": "6222 0210 0100 3344"},
+      {"supplier_id": "S-002", "name": "星辰网络设备", "rating": "B", "blacklisted": false, "bank_account": "6217 0001 8800 9021"},
+      {"supplier_id": "S-003", "name": "华达电子", "rating": "C", "blacklisted": true, "bank_account": "6228 4800 5566 7788"},
+      {"supplier_id": "S-004", "name": "恒通物流", "rating": "C", "blacklisted": false, "bank_account": "6214 8301 2233 4455"}
+    ],
+    "PurchaseOrder": [
+      {"po_id": "PO-0001", "title": "办公椅 20 把", "amount": 8600, "status": "paid", "requester": "alice"},
+      {"po_id": "PO-0002", "title": "交换机 4 台", "amount": 23800, "status": "approved", "requester": "dave"},
+      {"po_id": "PO-0003", "title": "打印纸 50 箱", "amount": 4200, "status": "approved", "requester": "alice"},
+      {"po_id": "PO-0004", "title": "投影仪 2 台", "amount": 9800, "status": "approved", "requester": "dave"}
+    ]
+  },
+  "links": [
+    {"type": "supplier", "from": "PO-0001", "to": "S-001"},
+    {"type": "supplier", "from": "PO-0002", "to": "S-002"},
+    {"type": "supplier", "from": "PO-0003", "to": "S-001"},
+    {"type": "supplier", "from": "PO-0004", "to": "S-002"}
+  ]
+}

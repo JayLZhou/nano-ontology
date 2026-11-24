@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nano-onto"
+version = "0.2.0"
+description = "Executable ontology for AI agents: objects, links and rule-checked actions, served over MCP."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["PyYAML>=6.0"]
+keywords = ["ontology", "agents", "mcp", "knowledge-graph", "palantir", "llm"]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+duckdb = ["duckdb>=1.0"]
+dev = ["pytest>=7", "duckdb>=1.0", "ruff>=0.4"]
+
+[project.scripts]
+nano-onto = "nano_onto.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["nano_onto*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = ["B905"]

@@ -1,0 +1,109 @@
+# Procurement ontology: what exists (objects, links) and what may happen (actions).
+name: procurement
+version: 0.1.0
+
+roles:
+  employee:     {label: 员工}
+  dept_manager: {label: 部门经理}
+  cfo:          {label: 财务总监}
+
+object_types:
+  Supplier:
+    label: 供应商
+    primary_key: supplier_id
+    properties:
+      supplier_id: {type: string, required: true}
+      name:        {type: string, required: true, label: 名称}
+      rating:      {type: string, enum: [A, B, C], label: 评级}
+      blacklisted: {type: boolean, default: false, label: 是否黑名单}
+      # property-level permission: every other role sees "***"
+      bank_account: {type: string, label: 收款账号, readable_by: [cfo]}
+
+  PurchaseOrder:
+    label: 采购单
+    primary_key: po_id
+    id_prefix: PO-
+    # row-level permission: employees only see their own orders
+    visible_when: obj.requester == actor.id or actor.role != 'employee'
+    properties:
+      po_id:     {type: string, required: true}
+      title:     {type: string, required: true, label: 标题}
+      amount:    {type: number, required: true, label: 金额(元)}
+      status:    {type: string, enum: [approved, paid, cancelled], default: approved, label: 状态}
+      requester: {type: string, label: 申请人}
+
+link_types:
+  supplier:
+    from: PurchaseOrder
+    to: Supplier
+    cardinality: many_to_one
+    label: 供应商
+
+action_types:
+  submit_purchase_order:
+    label: 提交采购单
+    description: 创建一张采购单。金额较大时会先进入审批，审批通过后才真正创建。
+    allowed_roles: [employee, dept_manager, cfo]
+    parameters:
+      title:    {type: string, description: 采购内容}
+      amount:   {type: number, description: 金额(元)}
+      supplier: {type: object_ref, object_type: Supplier}
+    rules:
+      - id: no_blacklisted_supplier
+        when: params.supplier.blacklisted
+        then: deny
+        message: 不得向黑名单供应商采购
+      - id: positive_amount
+        when: params.amount <= 0
+        then: deny
+        message: 金额必须大于 0
+      - id: dept_manager_over_10k
+        when: params.amount > 10000
+        then: {require_approval: dept_manager}
+        message: 单笔超过 1 万元须部门经理审批
+      - id: cfo_over_50k
+        when: params.amount > 50000
+        then: {require_approval: cfo}
+        message: 单笔超过 5 万元须财务总监审批
+      - id: warn_rating_c
+        when: params.supplier.rating == 'C'
+        then: warn
+        message: 该供应商评级为 C，请注意交付风险
+    effects:
+      - create: PurchaseOrder
+        as: po
+        set:
+          title: params.title
+          amount: params.amount
+          requester: actor.id
+          status: "'approved'"
+      - link: supplier
+        from: po
+        to: params.supplier
+
+  cancel_purchase_order:
+    label: 取消采购单
+    allowed_roles: [employee, dept_manager, cfo]
+    parameters:
+      po: {type: object_ref, object_type: PurchaseOrder}
+    rules:
+      - id: only_unpaid
+        when: params.po.status != 'approved'
+        then: deny
+        message: 只有已批准且未付款的采购单可以取消
+      - id: only_own_or_cfo
+        when: params.po.requester != actor.id and actor.role != 'cfo'
+        then: deny
+        message: 只能取消自己的采购单（财务总监除外）
+    effects:
+      - update: params.po
+        set: {status: "'cancelled'"}
+
+  blacklist_supplier:
+    label: 拉黑供应商
+    allowed_roles: [cfo]
+    parameters:
+      supplier: {type: object_ref, object_type: Supplier}
+    effects:
+      - update: params.supplier
+        set: {blacklisted: true}

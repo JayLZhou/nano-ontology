@@ -1,0 +1,107 @@
+# Govern an EXISTING database in place: nothing is copied into nano-onto.
+#
+#   suppliers(id, supplier_name, credit_limit, active)
+#   purchase_orders(po_no, title, amount, state, requested_by, supplier_id -> suppliers.id)
+#   po_tags(po_no, tag)                     -- join table
+#
+# Actions read and write those tables directly, in the same transaction as the
+# audit entry, and tell the ERP about new orders through a webhook.
+name: erp
+version: 1.0.0
+
+roles:
+  buyer:   {label: Buyer}
+  finance: {label: Finance}
+
+object_types:
+  Supplier:
+    primary_key: supplier_id
+    source:
+      table: suppliers
+      columns: {supplier_id: id, name: supplier_name}     # property -> column (same name if omitted)
+    properties:
+      supplier_id:  {type: integer, required: true}
+      name:         {type: string, required: true}
+      credit_limit: {type: number}
+      active:       {type: boolean, default: true}
+
+  PurchaseOrder:
+    primary_key: po_no
+    id_prefix: PO-
+    source:
+      table: purchase_orders
+      columns: {status: state, requester: requested_by}
+    properties:
+      po_no:     {type: string, required: true}
+      title:     {type: string, required: true}
+      amount:    {type: number, required: true}
+      status:    {type: string, enum: [open, cancelled], default: open}
+      requester: {type: string}
+
+  Tag:                                   # not mapped: lives in nano-onto's own tables
+    primary_key: tag
+    properties:
+      tag: {type: string, required: true}
+
+link_types:
+  supplier:
+    from: PurchaseOrder
+    to: Supplier
+    source: {column: supplier_id}        # foreign-key column on purchase_orders
+  tags:
+    from: PurchaseOrder
+    to: Tag
+    cardinality: many_to_many
+    source: {table: po_tags, from_column: po_no, to_column: tag}
+
+webhooks:
+  erp:
+    url: ${ERP_HOOK_URL}                 # secrets and endpoints stay out of the YAML
+    secret_env: ERP_HOOK_SECRET          # optional HMAC-SHA256 signature
+    max_attempts: 5
+
+action_types:
+  create_order:
+    allowed_roles: [buyer, finance]
+    parameters:
+      title:    {type: string}
+      amount:   {type: number}
+      supplier: {type: object_ref, object_type: Supplier}
+      tag:      {type: object_ref, object_type: Tag, required: false}
+    rules:
+      - id: active_supplier
+        when: not params.supplier.active
+        then: deny
+        message: supplier is inactive
+      - id: within_credit_limit
+        when: params.amount > params.supplier.credit_limit
+        then: {require_approval: finance}
+        message: amount exceeds the supplier's credit limit
+    effects:
+      - create: PurchaseOrder
+        as: po
+        set: {title: params.title, amount: params.amount, requester: actor.id}
+      - link: supplier
+        from: po
+        to: params.supplier
+      - webhook: erp
+        event: purchase_order.created
+        payload: {po_no: po.po_no, amount: params.amount, supplier_id: params.supplier.supplier_id}
+
+  tag_order:
+    allowed_roles: [buyer, finance]
+    parameters:
+      po:  {type: object_ref, object_type: PurchaseOrder}
+      tag: {type: object_ref, object_type: Tag}
+    effects:
+      - link: tags
+        from: params.po
+        to: params.tag
+
+  deactivate_supplier:
+    allowed_roles: [finance]
+    parameters:
+      supplier: {type: object_ref, object_type: Supplier}
+    effects:
+      - update: params.supplier
+        set: {active: false}
