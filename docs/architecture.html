@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture · nano-onto</title>
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="../index.html">nano-onto</a>
+  <nav class="links"><a href="../index.html#console">Console</a><a href="../index.html#benchmark">Benchmark</a>
+    <a href="walkthrough.html">Docs</a><a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a></nav>
+</div></header>
+<div class="wrap doc">
+  <aside class="side"><h4>Start</h4><a href="walkthrough.html">Walkthrough</a><a href="walkthrough_cn.html">完整流程（中文）</a><h4>Model your domain</h4><a href="ontology-reference.html">Ontology reference</a><h4>Run it</h4><a href="agents.html">Connect an agent</a><a href="console.html">Console</a><a href="cli-reference.html">CLI reference</a><h4>Understand it</h4><a href="architecture.html" class=on>Architecture</a><a href="benchmark.html">Benchmark</a><a href="changelog.html">Changelog</a></aside>
+  <article class="prose"><h1 id="architecture">Architecture</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../images/architecture-dark.svg">
+    <img src="../images/architecture-light.svg" alt="nano-onto architecture" width="900">
+  </picture>
+</p>
+
+<p>nano-onto is one engine behind several thin surfaces. An ontology file says what exists and what may happen; the engine enforces it; a SQL store holds the data, the approval requests and the audit log.</p>
+<h2 id="what-one-action-does">What one action does</h2>
+<p><code>Engine.execute(action, params, actor)</code> runs these steps inside <strong>one serialized transaction</strong>:</p>
+<ol>
+<li><strong>Version check.</strong> The database must follow the ontology this process holds, or the call fails with <code>VersionError</code>.</li>
+<li><strong>Role gate.</strong> The actor's role must be declared, and be in the action's <code>allowed_roles</code> if it has any. Otherwise → <code>denied</code>.</li>
+<li><strong>Parameters.</strong> Unknown parameters are refused, values are coerced to their types, and object references are resolved -- only to objects the actor may read. Otherwise → <code>invalid</code>.</li>
+<li><strong>Rules.</strong> Every rule is evaluated over <code>params</code> and <code>actor</code>. Any <code>deny</code> → <code>denied</code>. Otherwise any <code>require_approval</code> for a role the actor does not hold → <code>pending_approval</code>: an approval request is stored and nothing else changes.</li>
+<li><strong>Effects.</strong> With no deny and no pending approval, the effects run in order. Any failure -- a missing object, a value that does not fit, a database constraint -- rolls everything back → <code>invalid</code>.</li>
+<li><strong>Audit.</strong> One row: who, which action, the outcome, the parameters and messages, and the ontology version. It commits with the effects, so an executed action always has its audit row; a rolled-back action gets its row written right after.</li>
+</ol>
+<p><code>explain</code> is the same path with <code>dry_run=True</code>: no effects, no approval request, but still an audit row.</p>
+<p><strong>Approval.</strong> <code>approve(request, approver)</code> checks that the request is pending, that the approver's role is one it still waits for, and that the approver is not the requester. It records the approval; if roles remain, that is all. On the last one it runs steps 2-6 again <em>as the original requester</em>, against current data, with the given approvals counted. The request then becomes <code>executed</code>, <code>denied</code>, stays pending for a newly required role, or -- if the action can no longer run at all -- <code>failed</code>. A transient database error changes nothing and can be retried.</p>
+<p><strong>Reads.</strong> <code>query</code> and <code>get</code> apply <code>readable_by</code> and <code>visible_when</code> for the given actor; <code>actor=None</code> is the trusted view used by the engine itself and by operators.</p>
+<h2 id="what-is-guaranteed">What is guaranteed</h2>
+<ul>
+<li>A rule is checked by code on every path to a change. There is no tool, command or API that applies an action's effects without evaluating its rules.</li>
+<li>The state the rules saw is the state the effects change: writers are serialized (<code>BEGIN IMMEDIATE</code> on SQLite, an advisory lock on PostgreSQL).</li>
+<li>An action either fully happens or does not happen at all, and either way it is in the audit log.</li>
+<li>A requester can never approve their own request; an approval by a role the request does not wait for is refused; both refusals are audited.</li>
+<li>A webhook delivery exists exactly when its action committed.</li>
+<li>A changed ontology is not enforced until it has been migrated, and an old one is not enforced after.</li>
+</ul>
+<h2 id="what-is-not">What is not</h2>
+<ul>
+<li><strong>Identity is given, not verified.</strong> nano-onto trusts whoever starts the stdio server, the holder of an HTTP token, or the CLI caller to say who the actor is. Authenticate users in front of it.</li>
+<li><strong>Rule outcomes are visible to the actor.</strong> A rule over a masked property reveals one fact per attempt (the attempt is audited). Do not put a secret behind a comparison the user can drive.</li>
+<li><strong>The audit log is a table, not a ledger.</strong> Anyone with direct write access to the database can alter it.</li>
+<li><strong>Policy gaps are yours.</strong> nano-onto enforces the rules you wrote. If nothing forbids splitting one large order into ten small ones, it is allowed.</li>
+</ul>
+<h2 id="modules">Modules</h2>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th style="text-align: right;">Lines</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema.py</code></td>
+<td style="text-align: right;">~700</td>
+<td>YAML → dataclasses, strict load-time validation, type coercion</td>
+</tr>
+<tr>
+<td><code>expr.py</code></td>
+<td style="text-align: right;">~250</td>
+<td>The expression language: <code>ast</code> parse, whitelist, interpreter</td>
+</tr>
+<tr>
+<td><code>engine.py</code></td>
+<td style="text-align: right;">~530</td>
+<td>Actions, approvals, read permissions, version check</td>
+</tr>
+<tr>
+<td><code>store.py</code></td>
+<td style="text-align: right;">~340</td>
+<td>Portable SQL store: objects, links, approvals, audit, outbox, stamp</td>
+</tr>
+<tr>
+<td><code>mcp_server.py</code></td>
+<td style="text-align: right;">~240</td>
+<td>MCP tools and the stdio transport</td>
+</tr>
+<tr>
+<td><code>compile.py</code></td>
+<td style="text-align: right;">~140</td>
+<td>Tool descriptions, JSON Schemas, <code>SKILL.md</code></td>
+</tr>
+<tr>
+<td><code>cli.py</code></td>
+<td style="text-align: right;">~300</td>
+<td>The <code>nano-onto</code> command</td>
+</tr>
+<tr>
+<td><code>tables.py</code> <em>(optional)</em></td>
+<td style="text-align: right;">~175</td>
+<td>Read-through to existing tables</td>
+</tr>
+<tr>
+<td><code>migrate.py</code> <em>(optional)</em></td>
+<td style="text-align: right;">~220</td>
+<td>Schema diff and data migration</td>
+</tr>
+<tr>
+<td><code>webhooks.py</code> <em>(optional)</em></td>
+<td style="text-align: right;">~155</td>
+<td>Outbox delivery, retries, signing</td>
+</tr>
+<tr>
+<td><code>http_server.py</code> <em>(optional)</em></td>
+<td style="text-align: right;">~165</td>
+<td>MCP over HTTP with bearer tokens</td>
+</tr>
+<tr>
+<td><code>console.py</code> + <code>console.html</code> <em>(optional)</em></td>
+<td style="text-align: right;">~180 + one page</td>
+<td>The web console: a small JSON API and a single static page</td>
+</tr>
+</tbody>
+</table>
+<p><code>bash core_lines.sh</code> prints the exact counts. Optional modules are imported only when used.</p>
+<h2 id="storage">Storage</h2>
+<p>All of nano-onto's tables are prefixed <code>onto_</code>, so they can share a database with yours:</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>onto_objects</code></td>
+<td>Objects of unmapped types, as JSON properties keyed by <code>(type, pk)</code></td>
+</tr>
+<tr>
+<td><code>onto_links</code></td>
+<td>Links of unmapped link types, <code>(link, from_pk, to_pk)</code></td>
+</tr>
+<tr>
+<td><code>onto_approvals</code></td>
+<td>Approval requests: action, parameters, requester, required and given approvals, status</td>
+</tr>
+<tr>
+<td><code>onto_audit</code></td>
+<td>The audit log</td>
+</tr>
+<tr>
+<td><code>onto_outbox</code></td>
+<td>Webhook deliveries and their retry state</td>
+</tr>
+<tr>
+<td><code>onto_meta</code>, <code>onto_history</code></td>
+<td>The ontology stamp and every version the database has followed</td>
+</tr>
+<tr>
+<td><code>onto_counters</code></td>
+<td>Id and sequence counters</td>
+</tr>
+</tbody>
+</table>
+<p>The same code runs on SQLite, PostgreSQL and DuckDB because it only uses portable SQL; the test suite runs every scenario on all three.</p>
+<h2 id="limits-worth-knowing">Limits worth knowing</h2>
+<ul>
+<li><strong>Write concurrency.</strong> One action at a time per database on PostgreSQL (advisory lock), one writer at a time on SQLite, a single process on DuckDB. Right for agent workloads, wrong for a high-throughput OLTP path.</li>
+<li><strong>Row filters run in Python.</strong> <code>visible_when</code> is evaluated after fetching a type's rows, not pushed down to SQL. Exact-match filters on mapped tables <em>are</em> pushed down.</li>
+<li><strong>Read-through</strong> needs single-column primary keys and plain-identifier names.</li>
+<li><strong>HTTP transport</strong> has static bearer tokens and no event stream: no OAuth, no server-initiated messages.</li>
+<li><strong>Queries are exact-match.</strong> There is no query language beyond <code>where</code> equality filters; use your database for analytics.</li>
+</ul>
+    <p style="margin-top:48px;font-size:14px"><a href="https://github.com/JayLZhou/nano-ontology/blob/main/docs/architecture.md">Edit this page on GitHub</a></p>
+  </article>
+</div>
+</body>
+</html>

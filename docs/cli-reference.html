@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLI reference · nano-onto</title>
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="../index.html">nano-onto</a>
+  <nav class="links"><a href="../index.html#console">Console</a><a href="../index.html#benchmark">Benchmark</a>
+    <a href="walkthrough.html">Docs</a><a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a></nav>
+</div></header>
+<div class="wrap doc">
+  <aside class="side"><h4>Start</h4><a href="walkthrough.html">Walkthrough</a><a href="walkthrough_cn.html">完整流程（中文）</a><h4>Model your domain</h4><a href="ontology-reference.html">Ontology reference</a><h4>Run it</h4><a href="agents.html">Connect an agent</a><a href="console.html">Console</a><a href="cli-reference.html" class=on>CLI reference</a><h4>Understand it</h4><a href="architecture.html">Architecture</a><a href="benchmark.html">Benchmark</a><a href="changelog.html">Changelog</a></aside>
+  <article class="prose"><h1 id="cli-reference">CLI reference</h1>
+<pre><code>nano-onto &lt;command&gt; [--schema FILE] [--db DATABASE] [--json] ...
+</code></pre>
+<p><code>--schema</code> defaults to <code>$NANO_ONTO_SCHEMA</code>, then <code>ontology.yaml</code>. <code>--db</code> defaults to <code>$NANO_ONTO_DB</code>, then <code>nano_onto.db</code>; it takes a SQLite file, <code>postgresql://user:pass@host/db</code> or <code>duckdb://file.duckdb</code>. <code>--actor</code> and <code>--role</code> default to <code>$NANO_ONTO_ACTOR</code> and <code>$NANO_ONTO_ROLE</code>. <code>--json</code> prints machine-readable output.</p>
+<h2 id="commands">Commands</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>validate</code></td>
+<td>Check an ontology file. Needs no database.</td>
+</tr>
+<tr>
+<td><code>init [--seed FILE]</code></td>
+<td>Create the database, stamp it with the ontology, optionally load seed data (<code>{"objects": {Type: [...]}, "links": [{type, from, to}]}</code>).</td>
+</tr>
+<tr>
+<td><code>describe [--actor A --role R]</code></td>
+<td>Types, properties, links, roles and actions.</td>
+</tr>
+<tr>
+<td><code>query TYPE [--where k=v ...] [--limit N] [--actor A --role R]</code></td>
+<td>List objects with exact-match filters.</td>
+</tr>
+<tr>
+<td><code>get TYPE ID [--actor A --role R]</code></td>
+<td>One object and its links.</td>
+</tr>
+<tr>
+<td><code>explain ACTION -p k=v ... --actor A --role R</code></td>
+<td>Dry-run an action and print the rule trace.</td>
+</tr>
+<tr>
+<td><code>run ACTION -p k=v ... --actor A --role R</code></td>
+<td>Execute an action. <code>--params-json '{...}'</code> is an alternative to <code>-p</code>.</td>
+</tr>
+<tr>
+<td><code>pending [--role R]</code></td>
+<td>Approval requests still waiting (for a role).</td>
+</tr>
+<tr>
+<td><code>request ID</code></td>
+<td>One approval request and its status.</td>
+</tr>
+<tr>
+<td><code>approve ID --actor A --role R [--note TEXT]</code></td>
+<td>Record an approval; executes the action when it is the last one.</td>
+</tr>
+<tr>
+<td><code>reject ID --actor A --role R [--note TEXT]</code></td>
+<td>Close a request as rejected.</td>
+</tr>
+<tr>
+<td><code>audit [--limit N] [--verbose]</code></td>
+<td>The audit log, one line per attempt; <code>--verbose</code> / <code>--json</code> add parameters and messages.</td>
+</tr>
+<tr>
+<td><code>migrate [--dry-run] [--drop-removed] [--by NAME]</code></td>
+<td>Review and apply a changed ontology.</td>
+</tr>
+<tr>
+<td><code>history</code></td>
+<td>Every ontology version this database has followed.</td>
+</tr>
+<tr>
+<td><code>deliver [--watch SECONDS]</code></td>
+<td>Send queued webhooks that are due.</td>
+</tr>
+<tr>
+<td><code>outbox [--status pending\|delivered\|dead] [--retry ID]</code></td>
+<td>List webhook deliveries; re-queue a dead one.</td>
+</tr>
+<tr>
+<td><code>serve-mcp --actor A --role R</code></td>
+<td>MCP server on stdin/stdout, as one fixed actor.</td>
+</tr>
+<tr>
+<td><code>serve-http --tokens FILE [--host H] [--port P] [--allow-origin O]</code></td>
+<td>MCP server over HTTP; each bearer token is one actor.</td>
+</tr>
+<tr>
+<td><code>console (--tokens FILE \| --demo USER:ROLE ...) [--auditor ROLE] [--host H] [--port P]</code></td>
+<td>Web console for people. With <code>--tokens</code> each bearer token is one user; <code>--demo</code> users need no sign-in and only work on localhost. <code>--auditor</code> roles may read the whole audit log.</td>
+</tr>
+<tr>
+<td><code>token --tokens FILE --actor A [--role R] [--revoke]</code></td>
+<td>Issue a token (printed once) or revoke an actor's tokens. Used by <code>serve-http</code> and <code>console</code>.</td>
+</tr>
+<tr>
+<td><code>export-skill [--out DIR]</code></td>
+<td>Write a <code>SKILL.md</code> for Skills-capable agents.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reading-as-someone">Reading as someone</h2>
+<p><code>describe</code>, <code>query</code> and <code>get</code> show everything when run without <code>--actor/--role</code>: that is the operator's view. With both flags they show what that actor may see -- hidden rows are left out and hidden properties print as <code>***</code>.</p>
+<h2 id="exit-codes">Exit codes</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>The command worked. For <code>run</code> / <code>approve</code>: the action was <code>executed</code> or is <code>pending_approval</code>; for <code>reject</code>: rejected.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Not found (<code>get</code>, <code>request</code>), an invalid ontology, or a migration with problems.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>The action was <code>denied</code> or <code>invalid</code>, an approval was refused, the database follows a different ontology, or a database error occurred.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="environment">Environment</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NANO_ONTO_SCHEMA</code>, <code>NANO_ONTO_DB</code></td>
+<td>Defaults for <code>--schema</code> and <code>--db</code></td>
+</tr>
+<tr>
+<td><code>NANO_ONTO_ACTOR</code>, <code>NANO_ONTO_ROLE</code></td>
+<td>Defaults for <code>--actor</code> and <code>--role</code></td>
+</tr>
+<tr>
+<td><code>NANO_ONTO_TODAY</code></td>
+<td>Overrides <code>today()</code> in expressions (tests, replays)</td>
+</tr>
+<tr>
+<td><code>${ANY_NAME}</code> in a webhook <code>url</code>, <code>headers</code> or <code>secret_env</code></td>
+<td>Resolved when the webhook is delivered</td>
+</tr>
+</tbody>
+</table>
+    <p style="margin-top:48px;font-size:14px"><a href="https://github.com/JayLZhou/nano-ontology/blob/main/docs/cli-reference.md">Edit this page on GitHub</a></p>
+  </article>
+</div>
+</body>
+</html>

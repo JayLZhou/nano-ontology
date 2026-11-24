@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>完整流程（中文） · nano-onto</title>
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="../index.html">nano-onto</a>
+  <nav class="links"><a href="../index.html#console">Console</a><a href="../index.html#benchmark">Benchmark</a>
+    <a href="walkthrough.html">Docs</a><a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a></nav>
+</div></header>
+<div class="wrap doc">
+  <aside class="side"><h4>Start</h4><a href="walkthrough.html">Walkthrough</a><a href="walkthrough_cn.html" class=on>完整流程（中文）</a><h4>Model your domain</h4><a href="ontology-reference.html">Ontology reference</a><h4>Run it</h4><a href="agents.html">Connect an agent</a><a href="console.html">Console</a><a href="cli-reference.html">CLI reference</a><h4>Understand it</h4><a href="architecture.html">Architecture</a><a href="benchmark.html">Benchmark</a><a href="changelog.html">Changelog</a></aside>
+  <article class="prose"><h1 id="完整流程">完整流程</h1>
+<p>这份文档把一个本体从头到尾走一遍：校验、建库、通过动作改数据、审批、按权限读取、审计、在审核下修改规则，用三种方式交给 agent，最后在浏览器里打开。</p>
+<p>全部可以直接运行。一条命令在一个临时数据库上跑完整个流程：</p>
+<pre><code class="language-bash">python -m pip install -e .
+bash examples/walkthrough.sh
+</code></pre>
+<p>下面按脚本的步骤逐一说明，输出都是真实运行结果。示例是一家小公司的采购系统（<a href="https://github.com/JayLZhou/nano-ontology/blob/main/examples/procurement/ontology.yaml"><code>examples/procurement/ontology.yaml</code></a>）：三个角色（员工 <code>employee</code>、部门经理 <code>dept_manager</code>、财务总监 <code>cfo</code>），两种对象（供应商 <code>Supplier</code>、采购单 <code>PurchaseOrder</code>），三个动作（提交采购单、取消采购单、拉黑供应商）。</p>
+<p>想自己敲命令的话，先告诉 CLI 本体文件和数据库在哪：</p>
+<pre><code class="language-bash">export NANO_ONTO_SCHEMA=examples/procurement/ontology.yaml NANO_ONTO_DB=shop.db
+</code></pre>
+<p><a href="walkthrough.html">English</a></p>
+<h2 id="1-校验并建库">1. 校验并建库</h2>
+<pre><code class="language-console">$ nano-onto validate
+ok: procurement v0.1.0 -- 2 object types, 1 link types, 3 actions, 7 rules
+$ nano-onto init --seed examples/procurement/seed.json
+initialised shop.db: Supplier=3, PurchaseOrder=2, links=2
+</code></pre>
+<p><code>validate</code> 是故意从严的：规则引用了不存在的属性、效果漏填了必填属性、角色不存在、键名拼错——都在这一步报错，而不是等 agent 调用时才出问题。<code>init</code> 建库、导入种子数据，并给数据库盖上"当前遵循哪个本体"的版本戳（第 10 步会用到）。</p>
+<h2 id="2-先问再做试运行">2. 先问再做：试运行</h2>
+<pre><code class="language-console">$ nano-onto explain submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
+[WAIT] submit_purchase_order: pending_approval (dry run)
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
+  [ ] no_blacklisted_supplier: params.supplier.blacklisted
+  [ ] positive_amount: params.amount &lt;= 0
+  [x] dept_manager_over_10k: params.amount &gt; 10000 -&gt; needs approval by dept_manager
+  [x] cfo_over_50k: params.amount &gt; 50000 -&gt; needs approval by cfo
+  [ ] warn_rating_c: params.supplier.rating == 'C'
+</code></pre>
+<p>试运行不改任何数据，只告诉你每条规则是否触发。agent 通过 <code>onto_explain</code> 工具得到同样的结果。试运行也会记入审计日志，因为它判定规则时会读到调用者本来看不到的数据。</p>
+<h2 id="3-一个被允许的动作">3. 一个被允许的动作</h2>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Stationery -p amount=8000 -p supplier=S-001 --actor alice --role employee
+[OK] submit_purchase_order: executed
+  created po: PO-0003
+</code></pre>
+<p>没有规则触发，于是执行效果：创建采购单并关联供应商。角色检查、参数转换、规则判定、效果和审计记录在同一个串行事务里完成。</p>
+<h2 id="4-一个被拒绝的动作">4. 一个被拒绝的动作</h2>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Chips -p amount=4800 -p supplier=S-003 --actor alice --role employee
+[DENIED] submit_purchase_order: denied
+  - denied: Blacklisted suppliers cannot be used
+  - warning: This supplier is rated C; expect delivery risk
+</code></pre>
+<p><code>S-003</code> 在黑名单里。规则 <code>params.supplier.blacklisted</code> 沿着引用读到供应商对象，拒绝了这个动作。数据没有任何变化，命令退出码为 2。</p>
+<h2 id="5-一个进入审批的动作">5. 一个进入审批的动作</h2>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
+[WAIT] submit_purchase_order: pending_approval
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
+  request: REQ-298D1CC6  waiting for: cfo, dept_manager
+</code></pre>
+<p>这是最关键的一步：<strong>采购单此时并不存在。</strong> 存下来的是一条审批请求，里面有参数、申请人和需要签字的角色。agent 如果在这里回答"已完成"就是错的——工具返回的状态明确写着 <code>pending_approval</code>。</p>
+<h2 id="6-职责分离">6. 职责分离</h2>
+<pre><code class="language-console">$ nano-onto approve REQ-298D1CC6 --actor alice --role cfo
+error: requesters cannot approve their own requests (separation of duties)
+</code></pre>
+<p>Alice 不能批准自己的申请，不管她声称自己是什么角色。这次尝试会以 <code>refused</code> 记入审计日志。</p>
+<h2 id="7-审批通过并执行">7. 审批通过并执行</h2>
+<pre><code class="language-console">$ nano-onto approve REQ-298D1CC6 --actor bob --role dept_manager
+[WAIT] submit_purchase_order: pending_approval
+  - approval recorded; still waiting for: cfo
+  request: REQ-298D1CC6  waiting for: cfo
+$ nano-onto approve REQ-298D1CC6 --actor carol --role cfo
+[OK] submit_purchase_order: executed
+  created po: PO-0004
+$ nano-onto request REQ-298D1CC6 --json
+REQ-298D1CC6 -&gt; executed approved by {'cfo': 'carol', 'dept_manager': 'bob'}
+</code></pre>
+<p>最后一个审批到达时，引擎不是简单地"重放"请求，而是以原申请人的身份、<strong>按当前数据把每条规则重新判定一遍</strong>。如果供应商在此期间被拉黑，请求会被关闭为 <code>denied</code>；如果现在适用更严的规则，新的审批角色会被加进来；如果动作已经根本无法执行，请求会被关闭为 <code>failed</code>，而不是一直挂着。申请人用 <code>nano-onto request &lt;id&gt;</code>（或 <code>onto_request_status</code> 工具）查看结果。</p>
+<h2 id="8-读权限">8. 读权限</h2>
+<p>采购本体规定：员工只能看到自己的采购单，只有财务总监能看到供应商的收款账号：</p>
+<pre><code class="language-yaml">PurchaseOrder:
+  visible_when: obj.requester == actor.id or actor.role != 'employee'   # 行级
+Supplier:
+  properties:
+    bank_account: {type: string, readable_by: [cfo]}                    # 字段级
+</code></pre>
+<pre><code class="language-console">$ nano-onto query PurchaseOrder --actor alice --role employee --json
+alice sees ['PO-0001', 'PO-0003', 'PO-0004']
+$ nano-onto query PurchaseOrder --actor carol --role cfo --json
+carol sees ['PO-0001', 'PO-0002', 'PO-0003', 'PO-0004']
+$ nano-onto get Supplier S-001 --actor alice --role employee
+type: Supplier
+id: S-001
+properties:
+  bank_account: '***'
+  blacklisted: false
+  name: Northwind Office Supply
+  rating: A
+  supplier_id: S-001
+links: {}
+$ nano-onto run cancel_purchase_order -p po=PO-0002 --actor alice --role employee
+[INVALID] cancel_purchase_order: invalid
+  - po: PurchaseOrder 'PO-0002' not found
+</code></pre>
+<p><code>PO-0002</code> 是 Dave 的。Alice 在查询里看不到它，她的<strong>动作</strong>也引用不了它：看不到的对象和不存在的对象返回完全一样的结果，所以没法用动作去试探"某个东西存不存在"。出于同样的原因，被脱敏的字段也不能用作查询条件。</p>
+<h2 id="9-审计日志">9. 审计日志</h2>
+<pre><code class="language-console">$ nano-onto audit
+   1  2026-11-24T20:25:40  alice (employee)       explain  submit_purchase_order      pending_approval
+   2  2026-11-24T20:25:40  alice (employee)       execute  submit_purchase_order      executed
+   3  2026-11-24T20:25:40  alice (employee)       execute  submit_purchase_order      denied
+   4  2026-11-24T20:25:40  alice (employee)       execute  submit_purchase_order      pending_approval REQ-298D1CC6
+   5  2026-11-24T20:25:40  alice (cfo)            approve  submit_purchase_order      refused          REQ-298D1CC6
+   6  2026-11-24T20:25:40  bob (dept_manager)     approve  submit_purchase_order      recorded         REQ-298D1CC6
+   7  2026-11-24T20:25:41  carol (cfo)            approve  submit_purchase_order      recorded         REQ-298D1CC6
+   8  2026-11-24T20:25:41  carol (cfo)            approve  submit_purchase_order      executed         REQ-298D1CC6
+   9  2026-11-24T20:25:41  alice (employee)       execute  cancel_purchase_order      invalid
+</code></pre>
+<p>每次尝试一行，包括试运行（1）、被拒绝的下单（3）、被拦下的自批（5）、引用自己看不到的采购单（9）。<code>nano-onto audit --verbose</code>（或 <code>--json</code>）会带上参数、提示信息、创建/修改了什么，以及当时生效的本体版本。</p>
+<h2 id="10-修改一条规则">10. 修改一条规则</h2>
+<p>把 <code>ontology.yaml</code> 里部门经理审批的门槛从 10000 改成 5000，并把 <code>version</code> 改成 <code>0.2.0</code>。数据库盖的是旧本体的戳，所以在这次改动被审阅之前，什么都不会执行：</p>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
+error: this database follows ontology procurement@0.1.0, but this process holds procurement@0.2.0 with different content. If the ontology file changed, review and apply it with `nano-onto migrate`; if the database was migrated, restart this process.
+$ nano-onto migrate --dry-run
+procurement@0.1.0 -&gt; procurement@0.2.0
+schema changes:
+  ~ action_types.submit_purchase_order.rules.dept_manager_over_10k.when: &quot;params.amount &gt; 10000&quot; -&gt; &quot;params.amount &gt; 5000&quot;
+  ~ version: &quot;0.1.0&quot; -&gt; &quot;0.2.0&quot;
+dry run: nothing was applied.
+$ nano-onto migrate --by carol
+procurement@0.1.0 -&gt; procurement@0.2.0
+schema changes:
+  ~ action_types.submit_purchase_order.rules.dept_manager_over_10k.when: &quot;params.amount &gt; 10000&quot; -&gt; &quot;params.amount &gt; 5000&quot;
+  ~ version: &quot;0.1.0&quot; -&gt; &quot;0.2.0&quot;
+applied.
+$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
+[WAIT] submit_purchase_order: pending_approval
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  request: REQ-AC609D91  waiting for: dept_manager
+$ nano-onto history --json
+1 initialised procurement@0.1.0
+2 migrated procurement@0.2.0
+</code></pre>
+<p>迁移不只是换个戳。类型或属性变化时，它会回填默认值、按 <code>renamed_from</code> 处理改名、转换类型、删除多余的值，并关闭已经没有意义的待审批请求；做不到安全处理的情况会作为问题报告，并且什么都不改。版本检查在每次动作和读取时都会做，所以一个长期运行的 server 会在别的进程迁移数据库的那一刻停下来，而不是继续执行旧规则。详见<a href="ontology-reference.html#changing-the-ontology">修改本体</a>。</p>
+<h2 id="11-交给-agentmcpstdio">11. 交给 agent：MCP（stdio）</h2>
+<pre><code class="language-bash">nano-onto serve-mcp --actor alice --role employee
+</code></pre>
+<p>这是一个零依赖、走标准输入输出的 MCP server。每个动作是一个 tool，描述里列出它的规则；读取走 <code>onto_query</code> 和 <code>onto_get</code>，按 Alice 的权限返回。脚本手动给它发了三行 JSON-RPC：</p>
+<pre><code class="language-console">server: nano-onto-procurement
+alice calls blacklist_supplier -&gt; denied [&quot;role 'employee' may not run blacklist_supplier; allowed: cfo&quot;]
+</code></pre>
+<p>操作人身份在 server 启动时就固定了，模型在对话里说什么都改变不了"它在替谁操作"。Claude Desktop、Claude Code、Cursor 的配置见<a href="agents.html">接入 agent</a>。</p>
+<h2 id="12-多用户mcphttp">12. 多用户：MCP（HTTP）</h2>
+<pre><code class="language-bash">TOKEN=$(nano-onto token --tokens tokens.yaml --actor carol --role cfo | tail -1)
+nano-onto serve-http --tokens tokens.yaml --port 18765
+</code></pre>
+<pre><code class="language-console">no token   -&gt; HTTP 401
+carol/cfo  -&gt; executed
+</code></pre>
+<p>一个进程服务多个用户：每个请求带一个 bearer token，由 token 决定操作人。文件里只存 token 的哈希；<code>nano-onto token --revoke</code> 立即生效，不用重启；默认只监听本机。</p>
+<h2 id="13-导出为-skill">13. 导出为 Skill</h2>
+<pre><code class="language-console">$ nano-onto export-skill --out skill
+wrote skill/SKILL.md
+</code></pre>
+<p>生成的 <code>SKILL.md</code> 教支持 Skills 的 agent 只通过 <code>nano-onto run</code> 改数据，里面列出每个动作、参数和规则。Skill 方式下 <code>--actor/--role</code> 由 agent 自己传，所以如果不能让 agent 自选身份，请用 MCP。</p>
+<h2 id="14-给人用的控制台">14. 给人用的控制台</h2>
+<pre><code class="language-bash">nano-onto console --demo alice:employee --demo carol:cfo --auditor cfo --port 18787
+</code></pre>
+<pre><code class="language-console">alice's audit view -&gt; own entries: 8
+carol's audit view -&gt; all entries: 13
+alice sees bank account -&gt; ***
+</code></pre>
+<p>Web 控制台就是同一个引擎前面加了一个页面。脚本向它的 API 问了三件事：Alice 只能看到自己的审计记录，Carol（审计角色）能看到全部，收款账号对 Alice 是脱敏的——和她的 agent 看到的完全一样。在浏览器里打开这个地址就能使用，详见<a href="console.html">控制台</a>。</p>
+<h2 id="接下来">接下来</h2>
+<ul>
+<li>写自己的本体：<a href="ontology-reference.html">本体参考</a></li>
+<li>数据留在原处：<a href="ontology-reference.html#existing-tables-read-through">直读已有表</a>，以及 <code>python examples/erp_readthrough/demo.py</code></li>
+<li>动作提交后通知其他系统：<a href="ontology-reference.html#webhooks">Webhook</a></li>
+<li>接入真实客户端：<a href="agents.html">接入 agent</a></li>
+<li>在浏览器里用：<a href="console.html">控制台</a></li>
+<li>所有命令和参数：<a href="cli-reference.html">CLI 参考</a></li>
+<li>到底保证什么、不保证什么：<a href="architecture.html">架构</a></li>
+</ul>
+    <p style="margin-top:48px;font-size:14px"><a href="https://github.com/JayLZhou/nano-ontology/blob/main/docs/walkthrough_cn.md">Edit this page on GitHub</a></p>
+  </article>
+</div>
+</body>
+</html>

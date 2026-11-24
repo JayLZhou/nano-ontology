@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ontology reference · nano-onto</title>
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="../index.html">nano-onto</a>
+  <nav class="links"><a href="../index.html#console">Console</a><a href="../index.html#benchmark">Benchmark</a>
+    <a href="walkthrough.html">Docs</a><a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a></nav>
+</div></header>
+<div class="wrap doc">
+  <aside class="side"><h4>Start</h4><a href="walkthrough.html">Walkthrough</a><a href="walkthrough_cn.html">完整流程（中文）</a><h4>Model your domain</h4><a href="ontology-reference.html" class=on>Ontology reference</a><h4>Run it</h4><a href="agents.html">Connect an agent</a><a href="console.html">Console</a><a href="cli-reference.html">CLI reference</a><h4>Understand it</h4><a href="architecture.html">Architecture</a><a href="benchmark.html">Benchmark</a><a href="changelog.html">Changelog</a></aside>
+  <article class="prose"><h1 id="ontology-reference">Ontology reference</h1>
+<p>An ontology is one YAML file. This page lists everything that can go in it. The two complete examples are <a href="https://github.com/JayLZhou/nano-ontology/blob/main/examples/procurement/ontology.yaml"><code>examples/procurement/ontology.yaml</code></a> (roles, approvals, read permissions) and <a href="https://github.com/JayLZhou/nano-ontology/blob/main/examples/erp_readthrough/ontology.yaml"><code>examples/erp_readthrough/ontology.yaml</code></a> (existing tables, webhooks).</p>
+<p>The file is checked strictly when it loads (<code>nano-onto validate</code>): unknown keys, unknown roles, references to properties or links that do not exist, effects that leave a required property unset, and values of the wrong type are all errors. The only keys that are ignored are those starting with <code>x-</code>, which you can use anywhere for your own annotations.</p>
+<ul>
+<li><a href="#top-level">Top level</a></li>
+<li><a href="#roles">Roles</a></li>
+<li><a href="#object-types">Object types</a></li>
+<li><a href="#link-types">Link types</a></li>
+<li><a href="#action-types">Action types</a>: <a href="#parameters">parameters</a> · <a href="#rules">rules</a> · <a href="#effects">effects</a></li>
+<li><a href="#expressions">Expressions</a></li>
+<li><a href="#read-permissions">Read permissions</a></li>
+<li><a href="#existing-tables-read-through">Existing tables (read-through)</a></li>
+<li><a href="#webhooks">Webhooks</a></li>
+<li><a href="#changing-the-ontology">Changing the ontology</a></li>
+</ul>
+<h2 id="top-level">Top level</h2>
+<pre><code class="language-yaml">name: procurement        # used in the MCP server name, the audit log and the version stamp
+version: 0.1.0           # bump it when you change the file
+description: ...         # optional
+roles: {...}
+object_types: {...}
+link_types: {...}
+action_types: {...}
+webhooks: {...}          # optional
+</code></pre>
+<h2 id="roles">Roles</h2>
+<pre><code class="language-yaml">roles:
+  employee:     {label: Employee}
+  dept_manager: {label: Department manager, description: ...}
+  cfo:          {label: CFO}
+</code></pre>
+<p>If roles are declared, an actor whose role is not in the list is refused everywhere. Roles are flat: there is no inheritance, so list every role that may run an action.</p>
+<h2 id="object-types">Object types</h2>
+<pre><code class="language-yaml">object_types:
+  PurchaseOrder:
+    label: Purchase order
+    description: ...
+    primary_key: po_id          # defaults to the first property
+    id_prefix: PO-              # generated ids look like PO-0001; integer keys get the next free number
+    properties:
+      po_id:     {type: string, required: true}
+      title:     {type: string, required: true, label: Title}
+      amount:    {type: number, required: true}
+      status:    {type: string, enum: [approved, paid, cancelled], default: approved}
+      requester: string         # shorthand for {type: string}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Property key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code></td>
+<td><code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code> or <code>date</code> (ISO <code>YYYY-MM-DD</code>). Default <code>string</code>.</td>
+</tr>
+<tr>
+<td><code>required</code></td>
+<td>A value must be present when an object is created; it cannot be set to null later.</td>
+</tr>
+<tr>
+<td><code>enum</code></td>
+<td>The allowed values.</td>
+</tr>
+<tr>
+<td><code>default</code></td>
+<td>Used when an object is created without a value.</td>
+</tr>
+<tr>
+<td><code>label</code>, <code>description</code></td>
+<td>Shown to agents in <code>onto_describe</code> and exported Skills.</td>
+</tr>
+<tr>
+<td><code>readable_by</code></td>
+<td>Roles that may read this property; see <a href="#read-permissions">Read permissions</a>.</td>
+</tr>
+<tr>
+<td><code>renamed_from</code></td>
+<td>The property's previous name; see <a href="#changing-the-ontology">Changing the ontology</a>.</td>
+</tr>
+</tbody>
+</table>
+<p>Object-type keys beyond those shown: <code>readable_by</code> and <code>visible_when</code> (<a href="#read-permissions">Read permissions</a>), <code>source</code> (<a href="#existing-tables-read-through">read-through</a>) and <code>renamed_from</code>.</p>
+<p>Values are coerced on the way in: <code>"8000"</code> becomes <code>8000</code>, <code>"true"</code> / <code>"yes"</code> become <code>True</code>. Numbers must be finite; integers are parsed exactly.</p>
+<h2 id="link-types">Link types</h2>
+<pre><code class="language-yaml">link_types:
+  supplier:
+    from: PurchaseOrder
+    to: Supplier
+    cardinality: many_to_one     # default; also one_to_one, one_to_many, many_to_many
+    label: Supplier
+</code></pre>
+<p>A link is followed in expressions by its name, from the <code>from</code> side: <code>params.po.supplier.rating</code>. Cardinality is enforced when links are written: a new <code>many_to_one</code> link replaces the previous one from the same object, and <code>one_to_one</code> / <code>one_to_many</code> also free the target. A link cannot share a name with a property of its <code>from</code> type.</p>
+<h2 id="action-types">Action types</h2>
+<pre><code class="language-yaml">action_types:
+  submit_purchase_order:
+    label: Submit a purchase order
+    description: Create a purchase order. Larger amounts are held for approval first.
+    allowed_roles: [employee, dept_manager, cfo]     # omit to allow every role; [] allows nobody
+    parameters: {...}
+    rules: [...]
+    effects: [...]
+</code></pre>
+<p>Action names become MCP tool names, so they must match <code>[A-Za-z_][A-Za-z0-9_-]*</code> and may not start with <code>onto_</code>.</p>
+<h3 id="parameters">Parameters</h3>
+<pre><code class="language-yaml">parameters:
+  title:    {type: string, description: What is being bought}
+  amount:   {type: number}
+  supplier: {type: object_ref, object_type: Supplier}
+  note:     {type: string, required: false}
+  quantity: {type: integer, default: 1}
+  po:       PurchaseOrder            # shorthand for an object_ref
+</code></pre>
+<p>Parameters are required unless they have a <code>default</code> or say <code>required: false</code>. An explicit <code>null</code> or empty string means "not given" and takes the default. Unknown parameters are refused.</p>
+<p>An <code>object_ref</code> is passed as the object's id and arrives in expressions as the object itself. The object must exist <strong>and be visible to the actor</strong>; otherwise the action is <code>invalid</code> with "not found".</p>
+<h3 id="rules">Rules</h3>
+<pre><code class="language-yaml">rules:
+  - id: no_blacklisted_supplier
+    when: params.supplier.blacklisted
+    then: deny
+    message: Blacklisted suppliers cannot be used
+  - id: cfo_over_50k
+    when: params.amount &gt; 50000
+    then: {require_approval: cfo}
+    message: Order exceeds 50,000
+    source: {doc: procurement-policy.md, quote: &quot;A single purchase above 50,000 requires approval by the CFO.&quot;}
+  - id: warn_rating_c
+    when: params.supplier.rating == 'C'
+    then: warn
+    message: This supplier is rated C; expect delivery risk
+</code></pre>
+<p>Every rule is evaluated; <code>when</code> is an <a href="#expressions">expression</a> over <code>params</code> and <code>actor</code>.</p>
+<table>
+<thead>
+<tr>
+<th><code>then</code></th>
+<th>Effect when the rule fires</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deny</code></td>
+<td>The action is <strong>denied</strong>.</td>
+</tr>
+<tr>
+<td><code>{require_approval: &lt;role&gt;}</code></td>
+<td>The action is held until someone with that role approves, unless the actor already holds the role.</td>
+</tr>
+<tr>
+<td><code>warn</code></td>
+<td>The message is returned; the action proceeds.</td>
+</tr>
+</tbody>
+</table>
+<p><code>message</code> is what the agent and the user see. <code>source</code> is free-form provenance (a document and a verbatim quote, typically) returned in the rule trace so a refusal can cite its origin.</p>
+<p>Outcome of an action: any <code>deny</code> → <code>denied</code>; otherwise any unmet <code>require_approval</code> → <code>pending_approval</code>; otherwise the effects run → <code>executed</code>. Bad parameters, failed effects and rule-evaluation errors → <code>invalid</code>, with everything rolled back.</p>
+<h3 id="effects">Effects</h3>
+<p>Effects run in order, in one transaction. String values are expressions; anything else is a literal (so a literal string needs inner quotes: <code>status: "'approved'"</code>).</p>
+<pre><code class="language-yaml">effects:
+  - create: PurchaseOrder        # the id is generated unless `set` provides the primary key
+    as: po                       # name the new object for later effects
+    set: {title: params.title, amount: params.amount, requester: actor.id, status: &quot;'approved'&quot;}
+  - link: supplier               # both ends must exist
+    from: po
+    to: params.supplier
+  - update: params.po            # an expression that resolves to an object
+    set: {status: &quot;'cancelled'&quot;}
+  - unlink: supplier
+    from: params.po
+    to: params.po.supplier
+  - webhook: erp                 # see Webhooks
+    event: purchase_order.created
+    payload: {po_id: po.po_id, amount: params.amount}
+</code></pre>
+<p>A <code>create</code> must set every required property that has no default; an <code>update</code> cannot change the primary key. Both are checked at load time.</p>
+<h2 id="expressions">Expressions</h2>
+<p>Rules, <code>visible_when</code> filters and effect values are written in a small expression language that looks like Python. It is parsed with <code>ast</code>, checked against a whitelist and interpreted; it is never passed to <code>eval</code>, and attribute access only ever reaches ontology data.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Names</td>
+<td><code>params.&lt;name&gt;</code>, <code>actor.id</code>, <code>actor.role</code>, effect aliases (<code>po</code>), and <code>obj</code> in <code>visible_when</code></td>
+</tr>
+<tr>
+<td>Members</td>
+<td>properties and to-one links: <code>params.po.supplier.rating</code>; <code>.id</code> is the primary key</td>
+</tr>
+<tr>
+<td>Operators</td>
+<td><code>and or not</code>, <code>== != &lt; &lt;= &gt; &gt;=</code>, <code>in</code>, <code>not in</code>, <code>+ - * / // %</code>, <code>x if cond else y</code></td>
+</tr>
+<tr>
+<td>Literals</td>
+<td>numbers, strings, <code>True False None</code>, lists</td>
+</tr>
+<tr>
+<td>Functions</td>
+<td><code>today()</code> (ISO date; override with <code>$NANO_ONTO_TODAY</code>), <code>len abs min max lower upper</code></td>
+</tr>
+</tbody>
+</table>
+<p>Things worth knowing:</p>
+<ul>
+<li><strong>Missing values are <code>None</code>.</strong> Arithmetic with <code>None</code> gives <code>None</code>, and an ordering comparison with <code>None</code> is false, so <code>params.po.supplier.rating &gt; 3</code> does not fire when there is no supplier. Where a missing value should trip the rule, say so: <code>params.po.supplier == None or params.po.supplier.rating &gt; 3</code>.</li>
+<li>Dates are ISO strings, so they compare correctly: <code>today() &gt;= '2026-01-01'</code>.</li>
+<li>Two references to the same object are equal: <code>params.keep == params.drop</code>.</li>
+<li>A to-many link gives a list: use <code>len(params.order.items)</code> or <code>x in ...</code>.</li>
+<li>Every name and member is checked when the ontology loads, including <code>x['member']</code> forms.</li>
+</ul>
+<h2 id="read-permissions">Read permissions</h2>
+<pre><code class="language-yaml">object_types:
+  Salary:
+    readable_by: [cfo]                                                   # type level
+  PurchaseOrder:
+    visible_when: obj.requester == actor.id or actor.role != 'employee'  # row level
+  Supplier:
+    properties:
+      bank_account: {type: string, readable_by: [cfo]}                   # property level
+</code></pre>
+<p>They apply to every read an agent makes (<code>onto_query</code>, <code>onto_get</code>, <code>onto_describe</code>, and the CLI when <code>--actor/--role</code> is given):</p>
+<ul>
+<li>A type the role may not read cannot be queried, and is left out of <code>onto_describe</code>.</li>
+<li>A row hidden by <code>visible_when</code> looks missing. <code>visible_when</code> is an <a href="#expressions">expression</a> over <code>obj</code> and <code>actor</code>; if it fails to evaluate, the row is hidden.</li>
+<li>A hidden property comes back as <code>***</code> and cannot be used as a filter (an equality filter would reveal the value).</li>
+<li>Links to objects the actor may not see are left out.</li>
+<li><strong>Actions follow the same rule for their parameters:</strong> an <code>object_ref</code> to a hidden object answers "not found", exactly like a missing one.</li>
+</ul>
+<p>Rules themselves read every property; the engine evaluates them, not the reader. An actor sees which rules fired on their own request, so a rule over a masked property reveals that one fact per attempt. Dry runs are audited for that reason.</p>
+<p>From Python, <code>engine.query(..., actor=None)</code> and <code>engine.get(..., actor=None)</code> are the trusted, unrestricted view.</p>
+<h2 id="existing-tables-read-through">Existing tables (read-through)</h2>
+<p>By default objects live in nano-onto's own tables. With a <code>source</code>, an object type lives in a table you already have, and a link is a foreign-key column or a join table. Nothing is copied: actions read and write those tables directly, in the same transaction as the audit entry.</p>
+<pre><code class="language-yaml">object_types:
+  Supplier:
+    primary_key: supplier_id
+    source:
+      table: suppliers
+      columns: {supplier_id: id, name: supplier_name}    # property -&gt; column; same name if omitted
+    properties:
+      supplier_id:  {type: integer, required: true}
+      name:         {type: string, required: true}
+      credit_limit: {type: number}
+      active:       {type: boolean, default: true}
+
+link_types:
+  supplier:
+    from: PurchaseOrder
+    to: Supplier
+    source: {column: supplier_id}                         # foreign-key column on PurchaseOrder's table
+  tags:
+    from: PurchaseOrder
+    to: Tag
+    cardinality: many_to_many
+    source: {table: po_tags, from_column: po_no, to_column: tag}    # join table
+</code></pre>
+<p>Open the store with the ontology so it knows the mapping -- the CLI does this for you:</p>
+<pre><code class="language-python">from nano_onto import Engine, Ontology, open_store
+onto = Ontology.load(&quot;ontology.yaml&quot;)
+engine = Engine(onto, open_store(&quot;postgresql://user:pass@host/erp&quot;, onto))
+</code></pre>
+<ul>
+<li><code>--db</code> / <code>open_store</code> take a SQLite file, <code>postgresql://...</code> (<code>pip install 'nano-onto[postgres]'</code>) or <code>duckdb://file.duckdb</code> (<code>pip install 'nano-onto[duckdb]'</code>).</li>
+<li>Only mapped columns are read; an update writes only the columns that changed; unmapped columns are never touched.</li>
+<li>Column values are coerced to the declared property types (<code>1</code> → <code>True</code>, a <code>DATE</code> → <code>"2026-03-01"</code>, <code>NUMERIC</code> → number). A value that does not fit is a clear error naming the column.</li>
+<li>The database's own constraints still apply. A failed <code>CHECK</code>, <code>NOT NULL</code> or foreign key rolls the whole action back and is audited as <code>invalid</code>.</li>
+<li>Missing tables or columns fail when the store opens, not in the middle of an action.</li>
+<li>Mapped and unmapped types mix freely. nano-onto's own bookkeeping (<code>onto_objects</code>, <code>onto_links</code>, <code>onto_approvals</code>, <code>onto_audit</code>, <code>onto_outbox</code>, ...) is created in the same database, all prefixed <code>onto_</code>.</li>
+</ul>
+<p>Limits: single-column primary keys; table and column names must be plain identifiers (not reserved words); a <code>NOT NULL</code> foreign-key column cannot be filled by a separate <code>link</code> effect after <code>create</code>.</p>
+<p>Run <code>python examples/erp_readthrough/demo.py</code> to see it against a pre-existing database.</p>
+<h2 id="webhooks">Webhooks</h2>
+<pre><code class="language-yaml">webhooks:
+  erp:
+    url: ${ERP_HOOK_URL}                      # or a literal https://... URL
+    headers: {Authorization: &quot;Bearer ${ERP_TOKEN}&quot;}
+    secret_env: ERP_HOOK_SECRET               # optional: HMAC-SHA256 signature of the body
+    max_attempts: 6                           # default 6
+    timeout: 10                               # seconds, default 10
+
+action_types:
+  submit_purchase_order:
+    effects:
+      # ... create / link ...
+      - webhook: erp
+        event: purchase_order.created
+        payload: {po_id: po.po_id, amount: params.amount}
+</code></pre>
+<p><code>${VAR}</code> is replaced from the environment at delivery time, so endpoints and secrets stay out of the YAML.</p>
+<p>The delivery is written to an outbox table <strong>in the action's transaction</strong>: it exists exactly when the action committed, never for a denied, pending or rolled-back action. It is then sent as:</p>
+<pre><code>POST &lt;url&gt;
+Content-Type: application/json
+X-Nano-Onto-Event: purchase_order.created
+X-Nano-Onto-Delivery: EVT-3AB5EA5DACA9                 # de-duplicate on this
+X-Nano-Onto-Signature: sha256=&lt;hmac of the body&gt;      # if secret_env is set
+
+{&quot;id&quot;: &quot;EVT-...&quot;, &quot;event&quot;: &quot;...&quot;, &quot;action&quot;: &quot;submit_purchase_order&quot;,
+ &quot;actor&quot;: {&quot;id&quot;: &quot;alice&quot;, &quot;role&quot;: &quot;employee&quot;}, &quot;ontology&quot;: &quot;procurement@0.1.0&quot;,
+ &quot;payload&quot;: {&quot;po_id&quot;: &quot;PO-0003&quot;, &quot;amount&quot;: 8000}}
+</code></pre>
+<p>A non-2xx answer (redirects included: they are not followed) or a network error is retried with exponential backoff -- 30 s, 1 min, 2 min, ... capped at 1 h -- and marked <code>dead</code> after <code>max_attempts</code>. The MCP servers deliver in the background; <code>nano-onto run</code> tries once; <code>nano-onto deliver [--watch 30]</code> drains the queue; <code>nano-onto outbox [--status dead] [--retry ID]</code> inspects it. Delivery is at-least-once. Every attempt is in the audit log, with secrets scrubbed from error messages.</p>
+<h2 id="changing-the-ontology">Changing the ontology</h2>
+<p>A database is stamped with the ontology it follows (name, version, a content fingerprint and a full copy). When the file changes, every command except <code>validate</code> and <code>migrate</code> refuses to run -- and so does a server that is already running, the moment another process migrates the database.</p>
+<pre><code class="language-bash">nano-onto migrate --dry-run     # the schema diff, and what will happen to stored data
+nano-onto migrate --by carol    # apply it in one transaction; recorded in history and the audit log
+nano-onto history               # every ontology this database has followed
+</code></pre>
+<p>What a migration does to stored data:</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rule, message, label or role changes</td>
+<td>Recorded; no data changes. Pending requests survive, because rules are re-checked at approval.</td>
+</tr>
+<tr>
+<td>Property added</td>
+<td>Backfilled with its <code>default</code>. Required with no default → <strong>problem</strong>.</td>
+</tr>
+<tr>
+<td>Property removed</td>
+<td>Dropped from stored objects.</td>
+</tr>
+<tr>
+<td>Property type or enum changed</td>
+<td>Every stored value is re-coerced; a value that does not fit → <strong>problem</strong>.</td>
+</tr>
+<tr>
+<td>Property, type or link renamed</td>
+<td>Declare <code>renamed_from: &lt;old name&gt;</code> on the new one and the data follows.</td>
+</tr>
+<tr>
+<td>Type or link removed</td>
+<td><strong>Problem</strong> if data exists, unless <code>--drop-removed</code> deletes it.</td>
+</tr>
+<tr>
+<td>Cardinality tightened</td>
+<td><strong>Problem</strong> if existing links violate it.</td>
+</tr>
+<tr>
+<td>Pending approval requests</td>
+<td>Closed as <code>stale</code> if their action was removed, their parameters no longer fit, the requester's role may no longer run it, or they wait for a role that no longer exists.</td>
+</tr>
+</tbody>
+</table>
+<p>If there is any problem, <strong>nothing</strong> is applied. Types mapped onto existing tables are never rewritten -- that data is not nano-onto's to migrate. <code>x-</code> annotations do not count as a change.</p>
+    <p style="margin-top:48px;font-size:14px"><a href="https://github.com/JayLZhou/nano-ontology/blob/main/docs/ontology-reference.md">Edit this page on GitHub</a></p>
+  </article>
+</div>
+</body>
+</html>

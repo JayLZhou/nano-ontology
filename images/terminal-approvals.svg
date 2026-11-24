@@ -1,0 +1,146 @@
+<svg class="rich-terminal" viewBox="0 0 1238 660.0" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    
+    
+
+    .terminal-2812394242-matrix {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .terminal-2812394242-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .terminal-2812394242-r1 { fill: #7d8590 }
+.terminal-2812394242-r2 { fill: #c9d1d9 }
+.terminal-2812394242-r3 { fill: #3fb950;font-weight: bold }
+.terminal-2812394242-r4 { fill: #e6edf3;font-weight: bold }
+.terminal-2812394242-r5 { fill: #d29922;font-weight: bold }
+.terminal-2812394242-r6 { fill: #79c0ff }
+.terminal-2812394242-r7 { fill: #f85149;font-weight: bold }
+    </style>
+
+    <defs>
+    <clipPath id="terminal-2812394242-clip-terminal">
+      <rect x="0" y="0" width="1219.0" height="609.0" />
+    </clipPath>
+    <clipPath id="terminal-2812394242-line-0">
+    <rect x="0" y="1.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-1">
+    <rect x="0" y="25.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-2">
+    <rect x="0" y="50.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-3">
+    <rect x="0" y="74.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-4">
+    <rect x="0" y="99.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-5">
+    <rect x="0" y="123.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-6">
+    <rect x="0" y="147.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-7">
+    <rect x="0" y="172.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-8">
+    <rect x="0" y="196.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-9">
+    <rect x="0" y="221.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-10">
+    <rect x="0" y="245.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-11">
+    <rect x="0" y="269.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-12">
+    <rect x="0" y="294.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-13">
+    <rect x="0" y="318.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-14">
+    <rect x="0" y="343.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-15">
+    <rect x="0" y="367.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-16">
+    <rect x="0" y="391.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-17">
+    <rect x="0" y="416.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-18">
+    <rect x="0" y="440.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-19">
+    <rect x="0" y="465.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-20">
+    <rect x="0" y="489.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-21">
+    <rect x="0" y="513.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-22">
+    <rect x="0" y="538.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-2812394242-line-23">
+    <rect x="0" y="562.7" width="1220" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#0d1117" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1236" height="658" rx="8"/><text class="terminal-2812394242-title" fill="#c9d1d9" text-anchor="middle" x="618" y="27">rules&#160;and&#160;approvals</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#terminal-2812394242-clip-terminal)">
+    
+    <g class="terminal-2812394242-matrix">
+    <text class="terminal-2812394242-r1" x="0" y="20" textLength="939.4" clip-path="url(#terminal-2812394242-line-0)">#&#160;alice&#160;is&#160;an&#160;employee:&#160;&#160;export&#160;NANO_ONTO_ACTOR=alice&#160;NANO_ONTO_ROLE=employee</text><text class="terminal-2812394242-r2" x="1220" y="20" textLength="12.2" clip-path="url(#terminal-2812394242-line-0)">
+</text><text class="terminal-2812394242-r3" x="0" y="44.4" textLength="24.4" clip-path="url(#terminal-2812394242-line-1)">$&#160;</text><text class="terminal-2812394242-r4" x="24.4" y="44.4" textLength="1098" clip-path="url(#terminal-2812394242-line-1)">nano-onto&#160;explain&#160;submit_purchase_order&#160;-p&#160;title=Servers&#160;-p&#160;amount=60000&#160;-p&#160;supplier=S-002</text><text class="terminal-2812394242-r2" x="1220" y="44.4" textLength="12.2" clip-path="url(#terminal-2812394242-line-1)">
+</text><text class="terminal-2812394242-r5" x="0" y="68.8" textLength="73.2" clip-path="url(#terminal-2812394242-line-2)">[WAIT]</text><text class="terminal-2812394242-r2" x="73.2" y="68.8" textLength="292.8" clip-path="url(#terminal-2812394242-line-2)">&#160;submit_purchase_order:&#160;</text><text class="terminal-2812394242-r5" x="366" y="68.8" textLength="195.2" clip-path="url(#terminal-2812394242-line-2)">pending_approval</text><text class="terminal-2812394242-r2" x="561.2" y="68.8" textLength="122" clip-path="url(#terminal-2812394242-line-2)">&#160;(dry&#160;run)</text><text class="terminal-2812394242-r2" x="1220" y="68.8" textLength="12.2" clip-path="url(#terminal-2812394242-line-2)">
+</text><text class="terminal-2812394242-r2" x="0" y="93.2" textLength="939.4" clip-path="url(#terminal-2812394242-line-3)">&#160;&#160;-&#160;needs&#160;approval&#160;by&#160;dept_manager&#160;(Department&#160;manager):&#160;Order&#160;exceeds&#160;10,000</text><text class="terminal-2812394242-r2" x="1220" y="93.2" textLength="12.2" clip-path="url(#terminal-2812394242-line-3)">
+</text><text class="terminal-2812394242-r2" x="0" y="117.6" textLength="646.6" clip-path="url(#terminal-2812394242-line-4)">&#160;&#160;-&#160;needs&#160;approval&#160;by&#160;cfo&#160;(CFO):&#160;Order&#160;exceeds&#160;50,000</text><text class="terminal-2812394242-r2" x="1220" y="117.6" textLength="12.2" clip-path="url(#terminal-2812394242-line-4)">
+</text><text class="terminal-2812394242-r2" x="0" y="142" textLength="707.6" clip-path="url(#terminal-2812394242-line-5)">&#160;&#160;[&#160;]&#160;no_blacklisted_supplier:&#160;params.supplier.blacklisted</text><text class="terminal-2812394242-r2" x="1220" y="142" textLength="12.2" clip-path="url(#terminal-2812394242-line-5)">
+</text><text class="terminal-2812394242-r2" x="0" y="166.4" textLength="500.2" clip-path="url(#terminal-2812394242-line-6)">&#160;&#160;[&#160;]&#160;positive_amount:&#160;params.amount&#160;&lt;=&#160;0</text><text class="terminal-2812394242-r2" x="1220" y="166.4" textLength="12.2" clip-path="url(#terminal-2812394242-line-6)">
+</text><text class="terminal-2812394242-r5" x="24.4" y="190.8" textLength="36.6" clip-path="url(#terminal-2812394242-line-7)">[x]</text><text class="terminal-2812394242-r2" x="61" y="190.8" textLength="963.8" clip-path="url(#terminal-2812394242-line-7)">&#160;dept_manager_over_10k:&#160;params.amount&#160;&gt;&#160;10000&#160;-&gt;&#160;needs&#160;approval&#160;by&#160;dept_manager</text><text class="terminal-2812394242-r2" x="1220" y="190.8" textLength="12.2" clip-path="url(#terminal-2812394242-line-7)">
+</text><text class="terminal-2812394242-r5" x="24.4" y="215.2" textLength="36.6" clip-path="url(#terminal-2812394242-line-8)">[x]</text><text class="terminal-2812394242-r2" x="61" y="215.2" textLength="744.2" clip-path="url(#terminal-2812394242-line-8)">&#160;cfo_over_50k:&#160;params.amount&#160;&gt;&#160;50000&#160;-&gt;&#160;needs&#160;approval&#160;by&#160;cfo</text><text class="terminal-2812394242-r2" x="1220" y="215.2" textLength="12.2" clip-path="url(#terminal-2812394242-line-8)">
+</text><text class="terminal-2812394242-r2" x="0" y="239.6" textLength="610" clip-path="url(#terminal-2812394242-line-9)">&#160;&#160;[&#160;]&#160;warn_rating_c:&#160;params.supplier.rating&#160;==&#160;&#x27;C&#x27;</text><text class="terminal-2812394242-r2" x="1220" y="239.6" textLength="12.2" clip-path="url(#terminal-2812394242-line-9)">
+</text><text class="terminal-2812394242-r3" x="0" y="264" textLength="24.4" clip-path="url(#terminal-2812394242-line-10)">$&#160;</text><text class="terminal-2812394242-r4" x="24.4" y="264" textLength="1049.2" clip-path="url(#terminal-2812394242-line-10)">nano-onto&#160;run&#160;submit_purchase_order&#160;-p&#160;title=Servers&#160;-p&#160;amount=60000&#160;-p&#160;supplier=S-002</text><text class="terminal-2812394242-r2" x="1220" y="264" textLength="12.2" clip-path="url(#terminal-2812394242-line-10)">
+</text><text class="terminal-2812394242-r5" x="0" y="288.4" textLength="73.2" clip-path="url(#terminal-2812394242-line-11)">[WAIT]</text><text class="terminal-2812394242-r2" x="73.2" y="288.4" textLength="292.8" clip-path="url(#terminal-2812394242-line-11)">&#160;submit_purchase_order:&#160;</text><text class="terminal-2812394242-r5" x="366" y="288.4" textLength="195.2" clip-path="url(#terminal-2812394242-line-11)">pending_approval</text><text class="terminal-2812394242-r2" x="1220" y="288.4" textLength="12.2" clip-path="url(#terminal-2812394242-line-11)">
+</text><text class="terminal-2812394242-r2" x="0" y="312.8" textLength="939.4" clip-path="url(#terminal-2812394242-line-12)">&#160;&#160;-&#160;needs&#160;approval&#160;by&#160;dept_manager&#160;(Department&#160;manager):&#160;Order&#160;exceeds&#160;10,000</text><text class="terminal-2812394242-r2" x="1220" y="312.8" textLength="12.2" clip-path="url(#terminal-2812394242-line-12)">
+</text><text class="terminal-2812394242-r2" x="0" y="337.2" textLength="646.6" clip-path="url(#terminal-2812394242-line-13)">&#160;&#160;-&#160;needs&#160;approval&#160;by&#160;cfo&#160;(CFO):&#160;Order&#160;exceeds&#160;50,000</text><text class="terminal-2812394242-r2" x="1220" y="337.2" textLength="12.2" clip-path="url(#terminal-2812394242-line-13)">
+</text><text class="terminal-2812394242-r2" x="0" y="361.6" textLength="134.2" clip-path="url(#terminal-2812394242-line-14)">&#160;&#160;request:&#160;</text><text class="terminal-2812394242-r6" x="134.2" y="361.6" textLength="146.4" clip-path="url(#terminal-2812394242-line-14)">REQ-01551E27</text><text class="terminal-2812394242-r2" x="280.6" y="361.6" textLength="390.4" clip-path="url(#terminal-2812394242-line-14)">&#160;&#160;waiting&#160;for:&#160;cfo,&#160;dept_manager</text><text class="terminal-2812394242-r2" x="1220" y="361.6" textLength="12.2" clip-path="url(#terminal-2812394242-line-14)">
+</text><text class="terminal-2812394242-r1" x="0" y="386" textLength="756.4" clip-path="url(#terminal-2812394242-line-15)">#&#160;she&#160;cannot&#160;approve&#160;her&#160;own&#160;request,&#160;whatever&#160;role&#160;she&#160;claims</text><text class="terminal-2812394242-r2" x="1220" y="386" textLength="12.2" clip-path="url(#terminal-2812394242-line-15)">
+</text><text class="terminal-2812394242-r3" x="0" y="410.4" textLength="24.4" clip-path="url(#terminal-2812394242-line-16)">$&#160;</text><text class="terminal-2812394242-r4" x="24.4" y="410.4" textLength="671" clip-path="url(#terminal-2812394242-line-16)">nano-onto&#160;approve&#160;REQ-01551E27&#160;--actor&#160;alice&#160;--role&#160;cfo</text><text class="terminal-2812394242-r2" x="1220" y="410.4" textLength="12.2" clip-path="url(#terminal-2812394242-line-16)">
+</text><text class="terminal-2812394242-r7" x="0" y="434.8" textLength="73.2" clip-path="url(#terminal-2812394242-line-17)">error:</text><text class="terminal-2812394242-r2" x="73.2" y="434.8" textLength="829.6" clip-path="url(#terminal-2812394242-line-17)">&#160;requesters&#160;cannot&#160;approve&#160;their&#160;own&#160;requests&#160;(separation&#160;of&#160;duties)</text><text class="terminal-2812394242-r2" x="1220" y="434.8" textLength="12.2" clip-path="url(#terminal-2812394242-line-17)">
+</text><text class="terminal-2812394242-r3" x="0" y="459.2" textLength="24.4" clip-path="url(#terminal-2812394242-line-18)">$&#160;</text><text class="terminal-2812394242-r4" x="24.4" y="459.2" textLength="756.4" clip-path="url(#terminal-2812394242-line-18)">nano-onto&#160;approve&#160;REQ-01551E27&#160;--actor&#160;bob&#160;--role&#160;dept_manager</text><text class="terminal-2812394242-r2" x="1220" y="459.2" textLength="12.2" clip-path="url(#terminal-2812394242-line-18)">
+</text><text class="terminal-2812394242-r5" x="0" y="483.6" textLength="73.2" clip-path="url(#terminal-2812394242-line-19)">[WAIT]</text><text class="terminal-2812394242-r2" x="73.2" y="483.6" textLength="292.8" clip-path="url(#terminal-2812394242-line-19)">&#160;submit_purchase_order:&#160;</text><text class="terminal-2812394242-r5" x="366" y="483.6" textLength="195.2" clip-path="url(#terminal-2812394242-line-19)">pending_approval</text><text class="terminal-2812394242-r2" x="1220" y="483.6" textLength="12.2" clip-path="url(#terminal-2812394242-line-19)">
+</text><text class="terminal-2812394242-r2" x="0" y="508" textLength="549" clip-path="url(#terminal-2812394242-line-20)">&#160;&#160;-&#160;approval&#160;recorded;&#160;still&#160;waiting&#160;for:&#160;cfo</text><text class="terminal-2812394242-r2" x="1220" y="508" textLength="12.2" clip-path="url(#terminal-2812394242-line-20)">
+</text><text class="terminal-2812394242-r2" x="0" y="532.4" textLength="134.2" clip-path="url(#terminal-2812394242-line-21)">&#160;&#160;request:&#160;</text><text class="terminal-2812394242-r6" x="134.2" y="532.4" textLength="146.4" clip-path="url(#terminal-2812394242-line-21)">REQ-01551E27</text><text class="terminal-2812394242-r2" x="280.6" y="532.4" textLength="219.6" clip-path="url(#terminal-2812394242-line-21)">&#160;&#160;waiting&#160;for:&#160;cfo</text><text class="terminal-2812394242-r2" x="1220" y="532.4" textLength="12.2" clip-path="url(#terminal-2812394242-line-21)">
+</text><text class="terminal-2812394242-r3" x="0" y="556.8" textLength="24.4" clip-path="url(#terminal-2812394242-line-22)">$&#160;</text><text class="terminal-2812394242-r4" x="24.4" y="556.8" textLength="671" clip-path="url(#terminal-2812394242-line-22)">nano-onto&#160;approve&#160;REQ-01551E27&#160;--actor&#160;carol&#160;--role&#160;cfo</text><text class="terminal-2812394242-r2" x="1220" y="556.8" textLength="12.2" clip-path="url(#terminal-2812394242-line-22)">
+</text><text class="terminal-2812394242-r3" x="0" y="581.2" textLength="48.8" clip-path="url(#terminal-2812394242-line-23)">[OK]</text><text class="terminal-2812394242-r2" x="48.8" y="581.2" textLength="292.8" clip-path="url(#terminal-2812394242-line-23)">&#160;submit_purchase_order:&#160;</text><text class="terminal-2812394242-r3" x="341.6" y="581.2" textLength="97.6" clip-path="url(#terminal-2812394242-line-23)">executed</text><text class="terminal-2812394242-r2" x="1220" y="581.2" textLength="12.2" clip-path="url(#terminal-2812394242-line-23)">
+</text><text class="terminal-2812394242-r2" x="0" y="605.6" textLength="170.8" clip-path="url(#terminal-2812394242-line-24)">&#160;&#160;created&#160;po:&#160;</text><text class="terminal-2812394242-r6" x="170.8" y="605.6" textLength="85.4" clip-path="url(#terminal-2812394242-line-24)">PO-0003</text><text class="terminal-2812394242-r2" x="1220" y="605.6" textLength="12.2" clip-path="url(#terminal-2812394242-line-24)">
+</text>
+    </g>
+    </g>
+</svg>

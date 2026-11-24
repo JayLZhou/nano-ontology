@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walkthrough · nano-onto</title>
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="../index.html">nano-onto</a>
+  <nav class="links"><a href="../index.html#console">Console</a><a href="../index.html#benchmark">Benchmark</a>
+    <a href="walkthrough.html">Docs</a><a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a></nav>
+</div></header>
+<div class="wrap doc">
+  <aside class="side"><h4>Start</h4><a href="walkthrough.html" class=on>Walkthrough</a><a href="walkthrough_cn.html">完整流程（中文）</a><h4>Model your domain</h4><a href="ontology-reference.html">Ontology reference</a><h4>Run it</h4><a href="agents.html">Connect an agent</a><a href="console.html">Console</a><a href="cli-reference.html">CLI reference</a><h4>Understand it</h4><a href="architecture.html">Architecture</a><a href="benchmark.html">Benchmark</a><a href="changelog.html">Changelog</a></aside>
+  <article class="prose"><h1 id="walkthrough-the-complete-flow">Walkthrough: the complete flow</h1>
+<p>This is the whole life of an ontology, start to finish: check it, load it, act through it, approve, read with permissions, audit, change a rule under review, hand it to an agent three different ways, and open it in a browser.</p>
+<p>Everything here is runnable. One script does all of it against a throwaway database:</p>
+<pre><code class="language-bash">python -m pip install -e .
+bash examples/walkthrough.sh
+</code></pre>
+<p>The sections below follow that script step by step, with its real output. The example is a small procurement company (<a href="https://github.com/JayLZhou/nano-ontology/blob/main/examples/procurement/ontology.yaml"><code>examples/procurement/ontology.yaml</code></a>): three roles (<code>employee</code>, <code>dept_manager</code>, <code>cfo</code>), two object types (<code>Supplier</code>, <code>PurchaseOrder</code>), and three actions (<code>submit_purchase_order</code>, <code>cancel_purchase_order</code>, <code>blacklist_supplier</code>).</p>
+<p>To type the commands yourself, point the CLI at a schema and a database once:</p>
+<pre><code class="language-bash">export NANO_ONTO_SCHEMA=examples/procurement/ontology.yaml NANO_ONTO_DB=shop.db
+</code></pre>
+<p><a href="walkthrough_cn.html">中文版</a></p>
+<h2 id="contents">Contents</h2>
+<ol>
+<li><a href="#1-check-and-load">Check and load</a></li>
+<li><a href="#2-ask-before-acting">Ask before acting</a></li>
+<li><a href="#3-an-allowed-action">An allowed action</a></li>
+<li><a href="#4-a-denied-action">A denied action</a></li>
+<li><a href="#5-an-action-held-for-approval">An action held for approval</a></li>
+<li><a href="#6-separation-of-duties">Separation of duties</a></li>
+<li><a href="#7-approval-and-execution">Approval and execution</a></li>
+<li><a href="#8-read-permissions">Read permissions</a></li>
+<li><a href="#9-the-audit-log">The audit log</a></li>
+<li><a href="#10-changing-a-rule">Changing a rule</a></li>
+<li><a href="#11-an-agent-over-mcp-stdio">An agent over MCP (stdio)</a></li>
+<li><a href="#12-many-users-over-http">Many users over HTTP</a></li>
+<li><a href="#13-a-skill">A Skill</a></li>
+<li><a href="#14-the-console-for-people">The console, for people</a></li>
+<li><a href="#where-to-go-next">Where to go next</a></li>
+</ol>
+<h2 id="1-check-and-load">1. Check and load</h2>
+<pre><code class="language-console">$ nano-onto validate
+ok: procurement v0.1.0 -- 2 object types, 1 link types, 3 actions, 7 rules
+$ nano-onto init --seed examples/procurement/seed.json
+initialised shop.db: Supplier=3, PurchaseOrder=2, links=2
+</code></pre>
+<p><code>validate</code> is strict on purpose. A rule that mentions a property that does not exist, an effect that leaves a required property unset, an unknown role, or a misspelt key all fail here, before any agent can call anything. <code>init</code> creates the database, loads the seed objects and links, and stamps the database with the ontology it now follows (that stamp matters in <a href="#10-changing-a-rule">step 10</a>).</p>
+<h2 id="2-ask-before-acting">2. Ask before acting</h2>
+<p>A dry run evaluates an action without changing anything, and shows the rule trace:</p>
+<pre><code class="language-console">$ nano-onto explain submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
+[WAIT] submit_purchase_order: pending_approval (dry run)
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
+  [ ] no_blacklisted_supplier: params.supplier.blacklisted
+  [ ] positive_amount: params.amount &lt;= 0
+  [x] dept_manager_over_10k: params.amount &gt; 10000 -&gt; needs approval by dept_manager
+  [x] cfo_over_50k: params.amount &gt; 50000 -&gt; needs approval by cfo
+  [ ] warn_rating_c: params.supplier.rating == 'C'
+</code></pre>
+<p>Every rule is listed with whether it fired. Agents get the same thing through the <code>onto_explain</code> tool. Dry runs are written to the audit log too, because they evaluate rules over data the caller may not be allowed to see.</p>
+<h2 id="3-an-allowed-action">3. An allowed action</h2>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Stationery -p amount=8000 -p supplier=S-001 --actor alice --role employee
+[OK] submit_purchase_order: executed
+  created po: PO-0003
+</code></pre>
+<p>No rule fired, so the effects ran: a <code>PurchaseOrder</code> was created and linked to its supplier. Role check, parameter coercion, rules, effects and the audit entry are one serialized transaction.</p>
+<h2 id="4-a-denied-action">4. A denied action</h2>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Chips -p amount=4800 -p supplier=S-003 --actor alice --role employee
+[DENIED] submit_purchase_order: denied
+  - denied: Blacklisted suppliers cannot be used
+  - warning: This supplier is rated C; expect delivery risk
+</code></pre>
+<p><code>S-003</code> is blacklisted; the rule <code>params.supplier.blacklisted</code> followed the reference to the supplier object and denied the action. Nothing changed. The exit code is 2, so scripts notice.</p>
+<h2 id="5-an-action-held-for-approval">5. An action held for approval</h2>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Servers -p amount=60000 -p supplier=S-002 --actor alice --role employee
+[WAIT] submit_purchase_order: pending_approval
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  - needs approval by cfo (CFO): Order exceeds 50,000
+  request: REQ-298D1CC6  waiting for: cfo, dept_manager
+</code></pre>
+<p>This is the important one: <strong>no order exists yet.</strong> What was stored is an approval request with the parameters, the requester and the roles that must sign. An agent that reports "done" here is wrong, and its tool result says so (<code>status: pending_approval</code>).</p>
+<h2 id="6-separation-of-duties">6. Separation of duties</h2>
+<pre><code class="language-console">$ nano-onto approve REQ-298D1CC6 --actor alice --role cfo
+error: requesters cannot approve their own requests (separation of duties)
+</code></pre>
+<p>Alice cannot approve her own request, whatever role she presents. The attempt is recorded in the audit log as <code>refused</code>.</p>
+<h2 id="7-approval-and-execution">7. Approval and execution</h2>
+<pre><code class="language-console">$ nano-onto approve REQ-298D1CC6 --actor bob --role dept_manager
+[WAIT] submit_purchase_order: pending_approval
+  - approval recorded; still waiting for: cfo
+  request: REQ-298D1CC6  waiting for: cfo
+$ nano-onto approve REQ-298D1CC6 --actor carol --role cfo
+[OK] submit_purchase_order: executed
+  created po: PO-0004
+$ nano-onto request REQ-298D1CC6 --json
+REQ-298D1CC6 -&gt; executed approved by {'cfo': 'carol', 'dept_manager': 'bob'}
+</code></pre>
+<p>When the last approval arrives, the engine does not simply replay the request. It resolves the parameters and evaluates <strong>every rule again against current data</strong>, as the original requester. If the supplier was blacklisted in the meantime the request is closed as <code>denied</code>; if a stricter rule now applies, the new role is added to the list; if the action can no longer run at all, the request is closed as <code>failed</code> rather than left hanging. <code>nano-onto request &lt;id&gt;</code> (or the <code>onto_request_status</code> tool) is how a requester finds out what happened.</p>
+<h2 id="8-read-permissions">8. Read permissions</h2>
+<p>The procurement ontology says employees see only their own orders, and only the CFO sees a supplier's bank account:</p>
+<pre><code class="language-yaml">PurchaseOrder:
+  visible_when: obj.requester == actor.id or actor.role != 'employee'   # row level
+Supplier:
+  properties:
+    bank_account: {type: string, readable_by: [cfo]}                    # property level
+</code></pre>
+<pre><code class="language-console">$ nano-onto query PurchaseOrder --actor alice --role employee --json
+alice sees ['PO-0001', 'PO-0003', 'PO-0004']
+$ nano-onto query PurchaseOrder --actor carol --role cfo --json
+carol sees ['PO-0001', 'PO-0002', 'PO-0003', 'PO-0004']
+$ nano-onto get Supplier S-001 --actor alice --role employee
+type: Supplier
+id: S-001
+properties:
+  bank_account: '***'
+  blacklisted: false
+  name: Northwind Office Supply
+  rating: A
+  supplier_id: S-001
+links: {}
+$ nano-onto run cancel_purchase_order -p po=PO-0002 --actor alice --role employee
+[INVALID] cancel_purchase_order: invalid
+  - po: PurchaseOrder 'PO-0002' not found
+</code></pre>
+<p><code>PO-0002</code> belongs to Dave. Alice does not see it in queries, and her <em>actions</em> cannot reference it either: a hidden object answers exactly like a missing one, so actions cannot be used to probe for what exists. A masked property cannot be used as a query filter for the same reason.</p>
+<h2 id="9-the-audit-log">9. The audit log</h2>
+<pre><code class="language-console">$ nano-onto audit
+   1  2026-11-24T20:25:40  alice (employee)       explain  submit_purchase_order      pending_approval
+   2  2026-11-24T20:25:40  alice (employee)       execute  submit_purchase_order      executed
+   3  2026-11-24T20:25:40  alice (employee)       execute  submit_purchase_order      denied
+   4  2026-11-24T20:25:40  alice (employee)       execute  submit_purchase_order      pending_approval REQ-298D1CC6
+   5  2026-11-24T20:25:40  alice (cfo)            approve  submit_purchase_order      refused          REQ-298D1CC6
+   6  2026-11-24T20:25:40  bob (dept_manager)     approve  submit_purchase_order      recorded         REQ-298D1CC6
+   7  2026-11-24T20:25:41  carol (cfo)            approve  submit_purchase_order      recorded         REQ-298D1CC6
+   8  2026-11-24T20:25:41  carol (cfo)            approve  submit_purchase_order      executed         REQ-298D1CC6
+   9  2026-11-24T20:25:41  alice (employee)       execute  cancel_purchase_order      invalid
+</code></pre>
+<p>One row per attempt, including the dry run (1), the denial (3), the refused self-approval (5) and the reference to an order Alice may not see (9). <code>nano-onto audit --verbose</code> (or <code>--json</code>) adds the parameters, the messages, what was created or updated, and the ontology version in force.</p>
+<h2 id="10-changing-a-rule">10. Changing a rule</h2>
+<p>Lower the manager-approval threshold from 10,000 to 5,000 in <code>ontology.yaml</code> and bump <code>version</code> to <code>0.2.0</code>. The database was stamped with the old ontology, so nothing runs until the change is reviewed:</p>
+<pre><code class="language-console">$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
+error: this database follows ontology procurement@0.1.0, but this process holds procurement@0.2.0 with different content. If the ontology file changed, review and apply it with `nano-onto migrate`; if the database was migrated, restart this process.
+$ nano-onto migrate --dry-run
+procurement@0.1.0 -&gt; procurement@0.2.0
+schema changes:
+  ~ action_types.submit_purchase_order.rules.dept_manager_over_10k.when: &quot;params.amount &gt; 10000&quot; -&gt; &quot;params.amount &gt; 5000&quot;
+  ~ version: &quot;0.1.0&quot; -&gt; &quot;0.2.0&quot;
+dry run: nothing was applied.
+$ nano-onto migrate --by carol
+procurement@0.1.0 -&gt; procurement@0.2.0
+schema changes:
+  ~ action_types.submit_purchase_order.rules.dept_manager_over_10k.when: &quot;params.amount &gt; 10000&quot; -&gt; &quot;params.amount &gt; 5000&quot;
+  ~ version: &quot;0.1.0&quot; -&gt; &quot;0.2.0&quot;
+applied.
+$ nano-onto run submit_purchase_order -p title=Printers -p amount=7000 -p supplier=S-001 --actor alice --role employee
+[WAIT] submit_purchase_order: pending_approval
+  - needs approval by dept_manager (Department manager): Order exceeds 10,000
+  request: REQ-AC609D91  waiting for: dept_manager
+$ nano-onto history --json
+1 initialised procurement@0.1.0
+2 migrated procurement@0.2.0
+</code></pre>
+<p>A migration is more than a stamp. When types or properties change it backfills defaults, follows <code>renamed_from</code>, re-types and drops stored values, and closes pending requests that no longer make sense; anything it cannot do safely is reported as a problem and nothing is applied. The check runs on every action and read, so a long-running server stops the moment another process migrates the database. See <a href="ontology-reference.html#changing-the-ontology">Changing the ontology</a>.</p>
+<h2 id="11-an-agent-over-mcp-stdio">11. An agent over MCP (stdio)</h2>
+<pre><code class="language-bash">nano-onto serve-mcp --actor alice --role employee
+</code></pre>
+<p>This is a dependency-free MCP server on stdin/stdout. Each action is a tool whose description lists its rules; reads go through <code>onto_query</code> and <code>onto_get</code> with Alice's permissions. The script sends it three JSON-RPC lines by hand:</p>
+<pre><code class="language-console">server: nano-onto-procurement
+alice calls blacklist_supplier -&gt; denied [&quot;role 'employee' may not run blacklist_supplier; allowed: cfo&quot;]
+</code></pre>
+<p>The actor is fixed when the server starts. Nothing the model says in the conversation can change who it is acting as. Client configuration for Claude Desktop, Claude Code and Cursor is in <a href="agents.html">Connect an agent</a>.</p>
+<h2 id="12-many-users-over-http">12. Many users over HTTP</h2>
+<pre><code class="language-bash">TOKEN=$(nano-onto token --tokens tokens.yaml --actor carol --role cfo | tail -1)
+nano-onto serve-http --tokens tokens.yaml --port 18765
+</code></pre>
+<pre><code class="language-console">no token   -&gt; HTTP 401
+carol/cfo  -&gt; executed
+</code></pre>
+<p>One process, many users: each request carries a bearer token and the token decides the actor. Only hashes of tokens are stored, <code>nano-onto token --revoke</code> takes effect without a restart, and the server binds to localhost unless told otherwise.</p>
+<h2 id="13-a-skill">13. A Skill</h2>
+<pre><code class="language-console">$ nano-onto export-skill --out skill
+wrote skill/SKILL.md
+---
+name: procurement-ontology
+description: &quot;Read and change procurement business data (Supplier, PurchaseOrder) only through ontology actions that enforce permissions, business rules and approvals. ...&quot;
+---
+</code></pre>
+<p>The generated <code>SKILL.md</code> teaches a Skills-capable agent to act only through <code>nano-onto run</code>, with every action, its parameters and its rules listed. A Skill passes <code>--actor/--role</code> itself, so use MCP when the agent must not be able to choose its identity.</p>
+<h2 id="14-the-console-for-people">14. The console, for people</h2>
+<pre><code class="language-bash">nano-onto console --demo alice:employee --demo carol:cfo --auditor cfo --port 18787
+</code></pre>
+<pre><code class="language-console">alice's audit view -&gt; own entries: 8
+carol's audit view -&gt; all entries: 13
+alice sees bank account -&gt; ***
+</code></pre>
+<p>The web console is the same engine with a page in front of it. The script asks its API three questions: Alice sees only her own audit entries, Carol (an auditor role) sees all of them, and the bank account is masked for Alice here exactly as it is for her agent. Open the address in a browser to use it: <a href="console.html">Console</a>.</p>
+<h2 id="where-to-go-next">Where to go next</h2>
+<ul>
+<li>Write your own ontology: <a href="ontology-reference.html">Ontology reference</a></li>
+<li>Leave your data where it is: <a href="ontology-reference.html#existing-tables-read-through">Read-through</a>, and <code>python examples/erp_readthrough/demo.py</code></li>
+<li>Notify other systems after an action commits: <a href="ontology-reference.html#webhooks">Webhooks</a></li>
+<li>Wire up a real client: <a href="agents.html">Connect an agent</a></li>
+<li>Use it in a browser: <a href="console.html">Console</a></li>
+<li>Every command and flag: <a href="cli-reference.html">CLI reference</a></li>
+<li>What exactly is guaranteed, and what is not: <a href="architecture.html">Architecture</a></li>
+</ul>
+    <p style="margin-top:48px;font-size:14px"><a href="https://github.com/JayLZhou/nano-ontology/blob/main/docs/walkthrough.md">Edit this page on GitHub</a></p>
+  </article>
+</div>
+</body>
+</html>

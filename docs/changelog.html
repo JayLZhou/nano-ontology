@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changelog · nano-onto</title>
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="../index.html">nano-onto</a>
+  <nav class="links"><a href="../index.html#console">Console</a><a href="../index.html#benchmark">Benchmark</a>
+    <a href="walkthrough.html">Docs</a><a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a></nav>
+</div></header>
+<div class="wrap doc">
+  <aside class="side"><h4>Start</h4><a href="walkthrough.html">Walkthrough</a><a href="walkthrough_cn.html">完整流程（中文）</a><h4>Model your domain</h4><a href="ontology-reference.html">Ontology reference</a><h4>Run it</h4><a href="agents.html">Connect an agent</a><a href="console.html">Console</a><a href="cli-reference.html">CLI reference</a><h4>Understand it</h4><a href="architecture.html">Architecture</a><a href="benchmark.html">Benchmark</a><a href="changelog.html" class=on>Changelog</a></aside>
+  <article class="prose"><h1 id="changelog">Changelog</h1>
+<h2 id="020">0.2.0</h2>
+<p>Roadmap features:</p>
+<ul>
+<li><strong>Read permissions</strong> -- <code>readable_by</code> on object types and properties, <code>visible_when</code> row filters;
+  applied by <code>Engine.query</code> / <code>Engine.get</code>, every MCP read tool and the CLI (<code>--actor/--role</code>).</li>
+<li><strong>Stores</strong> -- the same store code runs on SQLite, PostgreSQL (<code>postgresql://</code>) and DuckDB (<code>duckdb://</code>).
+  <strong>Read-through</strong>: <code>source:</code> maps object types and links onto existing tables (<code>open_store(path, onto)</code>).</li>
+<li><strong>Webhooks</strong> -- <code>webhook</code> effects go through a transactional outbox with retries (<code>nano-onto deliver</code>, <code>outbox</code>).</li>
+<li><strong>Versioning and migrations</strong> -- databases are stamped with their ontology; <code>nano-onto migrate</code> / <code>history</code>.</li>
+<li><strong>HTTP MCP transport</strong> with per-user bearer tokens (<code>nano-onto serve-http</code>, <code>nano-onto token</code>).</li>
+<li>
+<p><strong>Benchmark harness</strong> in <code>benchmark/</code>.</p>
+</li>
+<li>
+<p><strong>Web console</strong> for people (<code>nano-onto console</code>): the ontology drawn out, data as your role may see it,
+  action forms with dry runs, an approvals inbox and the audit log. One static page and a small JSON API
+  on the same engine; token sign-in, or <code>--demo</code> users on localhost.</p>
+</li>
+</ul>
+<p>Documentation and tooling:</p>
+<ul>
+<li>
+<p>Project website (<code>website/</code> + <code>scripts/build_site.py</code>): a landing page and documentation pages generated
+  from the repository's Markdown, published to GitHub Pages by <code>.github/workflows/pages.yml</code>.</p>
+</li>
+<li>
+<p>The procurement example, its seed data and the benchmark tasks are now in English. The published
+  benchmark numbers were measured on the earlier Chinese wording (kept as <code>*.zh.json</code>).</p>
+</li>
+<li>
+<p>README rewritten around a showcase of real output; new <code>docs/</code> (walkthrough in English and Chinese,
+  ontology reference, agent setup, CLI reference, architecture) and <code>examples/walkthrough.sh</code>, which runs
+  the complete flow end to end and is part of CI.</p>
+</li>
+<li><code>images/</code> is generated from real sessions and recorded benchmark episodes by <code>scripts/readme_assets.py</code>.</li>
+<li><code>nano-onto audit</code> prints one line per attempt (<code>--verbose</code> / <code>--json</code> for details).</li>
+<li>Both MCP transports are tested against the official MCP Python SDK client.</li>
+</ul>
+<p>Fixes found while auditing 0.1.0:</p>
+<ul>
+<li><code>amount=nan</code> (or <code>inf</code>) passed every comparison and so every rule; non-finite numbers are now rejected.</li>
+<li>A misspelt key (<code>allowed_role:</code>) was silently ignored, leaving the action open to every role; unknown
+  keys are now load errors, as are non-mapping specs, effects that omit required properties, updates of a
+  primary key, reserved aliases, duplicate rule ids, and enum/default values of the wrong type.</li>
+<li>A broken ontology could crash the loader with <code>KeyError</code> instead of reporting the problem.</li>
+<li>A fully approved request whose effects failed stayed <code>pending</code> forever with nobody able to decide it;
+  it is now closed as <code>failed</code>.</li>
+<li>Refused approval attempts (self-approval, wrong role) were not audited.</li>
+<li>Rule evaluation and effects were not one transaction; an action is now a single serialized transaction
+  that includes its audit entry, so concurrent processes cannot act on stale rule checks.</li>
+<li><code>link</code> effects could point at objects that do not exist; <code>one_to_one</code> / <code>one_to_many</code> were not enforced
+  on the target side.</li>
+<li>Actors with a role the ontology does not define could run actions that had no <code>allowed_roles</code>.</li>
+<li><code>--where blacklisted=true</code> compared the string <code>"true"</code> with a boolean and matched nothing.</li>
+<li>Expression arithmetic allowed <code>'x' * 10**9</code>.</li>
+</ul>
+<p>Fixes from an independent review of the 0.2.0 code before release:</p>
+<ul>
+<li>An explicit <code>null</code> or <code>""</code> for a parameter with a default resolved to <code>None</code>, so threshold rules using it
+  did not fire; it now takes the default, exactly like an omitted parameter.</li>
+<li>Integers were parsed through <code>float</code>: ids above 2**53 addressed the neighbouring row, and spellings such as
+  <code>"01"</code> / <code>"1.0"</code> made the same row look like two objects to rules and links. Integers are parsed exactly
+  and every object has one canonical key.</li>
+<li>Actions could reference objects their actor may not read, so <code>explain</code> distinguished hidden from missing
+  objects and exposed rule outcomes over them. Hidden objects now answer "not found"; dry runs are audited.</li>
+<li>A database error at the start of <code>approve</code> (e.g. a lock timeout) let any caller close the request and wipe
+  its approvals; a transient error now changes nothing.</li>
+<li>A failed <code>COMMIT</code> left the transaction and its write lock open.</li>
+<li><code>allowed_roles</code> was not re-checked when a pending request was finally approved; <code>migrate</code> now closes
+  requests whose requester may no longer run the action or that wait for a role that no longer exists.</li>
+<li>A running engine kept enforcing its old ontology after another process migrated the database; the stamp
+  is now checked on every action and read.</li>
+<li>Revoked HTTP tokens kept working until restart; the tokens file is now re-read when it changes.</li>
+<li>Webhooks followed redirects (re-sending credentials to the new host and reporting success), stored
+  secrets from error messages in the outbox and audit log, and two concurrent sweeps could send one event
+  twice. Redirects are failures, secrets are scrubbed, deliveries are claimed before sending.</li>
+<li><code>x-</code> keys were stripped from webhook headers and payloads (<code>x-api-key</code> was never sent).</li>
+<li><code>migrate</code> reported "up to date" for a reorder-only change while the engine still refused the database;
+  <code>renamed_from</code> naming a type that still exists silently moved its data.</li>
+<li><code>export-skill</code> wrote a database URL with its password into SKILL.md.</li>
+<li>Smaller: overflow in rule arithmetic produced NaN; requests' existence leaked to uninvolved actors through
+  approve/reject errors; generated ids did not fit integer keys; malformed <code>Origin</code> headers or deeply nested
+  JSON killed an HTTP handler thread; dates accepted trailing garbage; engine calls inside a caller's
+  transaction could not be rolled back and are now refused.</li>
+</ul>
+<p>Changed:</p>
+<ul>
+<li>nano-onto's tables are now prefixed <code>onto_</code> (they can live next to existing tables). A database created
+  by 0.1.0 is not picked up; re-run <code>nano-onto init</code>.</li>
+<li>Reads go through <code>Engine.query</code> / <code>Engine.get</code>; <code>mcp_server.object_with_links</code> is gone.</li>
+<li><code>allowed_roles: []</code> now means "nobody" rather than "everybody".</li>
+<li>Dry runs (<code>explain</code>) are written to the audit log with the event <code>explain</code>.</li>
+<li>An action whose object parameter is hidden from the actor is <code>invalid</code> ("not found"), not <code>denied</code>.</li>
+</ul>
+    <p style="margin-top:48px;font-size:14px"><a href="https://github.com/JayLZhou/nano-ontology/blob/main/CHANGELOG.md">Edit this page on GitHub</a></p>
+  </article>
+</div>
+</body>
+</html>

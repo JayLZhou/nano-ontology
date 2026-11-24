@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect an agent · nano-onto</title>
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="../index.html">nano-onto</a>
+  <nav class="links"><a href="../index.html#console">Console</a><a href="../index.html#benchmark">Benchmark</a>
+    <a href="walkthrough.html">Docs</a><a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a></nav>
+</div></header>
+<div class="wrap doc">
+  <aside class="side"><h4>Start</h4><a href="walkthrough.html">Walkthrough</a><a href="walkthrough_cn.html">完整流程（中文）</a><h4>Model your domain</h4><a href="ontology-reference.html">Ontology reference</a><h4>Run it</h4><a href="agents.html" class=on>Connect an agent</a><a href="console.html">Console</a><a href="cli-reference.html">CLI reference</a><h4>Understand it</h4><a href="architecture.html">Architecture</a><a href="benchmark.html">Benchmark</a><a href="changelog.html">Changelog</a></aside>
+  <article class="prose"><h1 id="connect-an-agent">Connect an agent</h1>
+<p>nano-onto reaches an agent in four ways. They share one engine, so the rules, approvals, read permissions and audit log are identical; they differ in <strong>who decides the actor</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Who decides the actor</th>
+<th>Use it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#mcp-over-stdio">MCP over stdio</a></td>
+<td>Whoever starts the server</td>
+<td>One user, a local client (Claude Desktop, Claude Code, Cursor, nanobot)</td>
+</tr>
+<tr>
+<td><a href="#mcp-over-http">MCP over HTTP</a></td>
+<td>The bearer token on each request</td>
+<td>Many users, one server</td>
+</tr>
+<tr>
+<td><a href="#skill">Skill</a></td>
+<td>The agent, by passing <code>--actor/--role</code></td>
+<td>Trusted agents in environments without MCP</td>
+</tr>
+<tr>
+<td><a href="#python">Python</a></td>
+<td>Your code</td>
+<td>You are building the agent</td>
+</tr>
+</tbody>
+</table>
+<p>In the first two the model cannot choose its identity, which is the point: an agent that can pick its own role can pick <code>cfo</code>.</p>
+<p>People use the same engine through the <a href="console.html">web console</a>: approvers decide requests there, and anyone can see what an agent did on their behalf.</p>
+<h2 id="the-tools-an-agent-sees">The tools an agent sees</h2>
+<p>Each action in the ontology is one tool. Its description lists the action's allowed roles and every rule with its message, and its input schema is generated from the parameters. Next to them:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>onto_describe</code></td>
+<td>Object types, properties, links, roles and actions, as this actor may see them</td>
+</tr>
+<tr>
+<td><code>onto_query</code></td>
+<td>List objects of a type, with exact-match filters; read permissions applied</td>
+</tr>
+<tr>
+<td><code>onto_get</code></td>
+<td>One object with its outgoing links</td>
+</tr>
+<tr>
+<td><code>onto_explain</code></td>
+<td>Dry-run an action: the outcome and the rule trace, nothing changed</td>
+</tr>
+<tr>
+<td><code>onto_request_status</code></td>
+<td>Has a held action happened yet? (<code>pending</code> / <code>executed</code> / <code>denied</code> / <code>rejected</code> / <code>failed</code> / <code>stale</code>)</td>
+</tr>
+<tr>
+<td><code>onto_pending_approvals</code></td>
+<td>Requests waiting for this actor's role</td>
+</tr>
+<tr>
+<td><code>onto_approve</code>, <code>onto_reject</code></td>
+<td>Decide a request (never your own)</td>
+</tr>
+</tbody>
+</table>
+<p>Every action result carries a <code>status</code>: <code>executed</code>, <code>pending_approval</code>, <code>denied</code> or <code>invalid</code>. The tool descriptions tell the model to report it truthfully; <code>pending_approval</code> in particular means the change has <strong>not</strong> happened.</p>
+<h2 id="mcp-over-stdio">MCP over stdio</h2>
+<pre><code class="language-bash">nano-onto serve-mcp --schema /abs/path/ontology.yaml --db /abs/path/shop.db --actor alice --role employee
+</code></pre>
+<p>A dependency-free MCP server (JSON-RPC 2.0 over stdin/stdout, protocol versions 2024-11-05 through 2025-11-25). It is tested against the official MCP Python SDK client.</p>
+<p><strong>Claude Desktop</strong> -- <code>claude_desktop_config.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;procurement&quot;: {
+      &quot;command&quot;: &quot;nano-onto&quot;,
+      &quot;args&quot;: [&quot;serve-mcp&quot;, &quot;--schema&quot;, &quot;/abs/path/ontology.yaml&quot;, &quot;--db&quot;, &quot;/abs/path/shop.db&quot;,
+               &quot;--actor&quot;, &quot;alice&quot;, &quot;--role&quot;, &quot;employee&quot;]
+    }
+  }
+}
+</code></pre>
+<p><strong>Cursor</strong> -- the same object in <code>.cursor/mcp.json</code>.</p>
+<p><strong>Claude Code</strong>:</p>
+<pre><code class="language-bash">claude mcp add procurement -- nano-onto serve-mcp --schema /abs/path/ontology.yaml --db /abs/path/shop.db --actor alice --role employee
+</code></pre>
+<p><strong>nanobot and other MCP clients</strong> -- register the same command and arguments wherever the client lists its MCP servers.</p>
+<p>Use absolute paths: clients start the server from their own working directory. If <code>nano-onto</code> is installed in a virtual environment, use the full path to its executable as <code>command</code>.</p>
+<h2 id="mcp-over-http">MCP over HTTP</h2>
+<p>One process serves many users; each request carries a bearer token and the token decides who is acting.</p>
+<pre><code class="language-bash">nano-onto token --tokens tokens.yaml --actor alice --role employee      # prints the token once
+nano-onto token --tokens tokens.yaml --actor carol --role cfo
+nano-onto serve-http --schema ontology.yaml --db shop.db --tokens tokens.yaml --port 8765
+</code></pre>
+<pre><code class="language-bash">curl -s http://127.0.0.1:8765/mcp \
+  -H &quot;Authorization: Bearer nonto_...&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:1,&quot;method&quot;:&quot;tools/call&quot;,&quot;params&quot;:{&quot;name&quot;:&quot;onto_query&quot;,&quot;arguments&quot;:{&quot;type&quot;:&quot;PurchaseOrder&quot;}}}'
+</code></pre>
+<p><strong>Claude Code</strong>:</p>
+<pre><code class="language-bash">claude mcp add --transport http procurement http://127.0.0.1:8765/mcp --header &quot;Authorization: Bearer nonto_...&quot;
+</code></pre>
+<p>With the MCP Python SDK:</p>
+<pre><code class="language-python">from mcp import ClientSession
+from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
+
+async with create_mcp_http_client(headers={&quot;Authorization&quot;: f&quot;Bearer {token}&quot;}) as http:
+    async with streamable_http_client(&quot;http://127.0.0.1:8765/mcp&quot;, http_client=http) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(&quot;submit_purchase_order&quot;, {&quot;title&quot;: &quot;servers&quot;, &quot;amount&quot;: 60000, &quot;supplier&quot;: &quot;S-002&quot;})
+</code></pre>
+<p>What to know:</p>
+<ul>
+<li>This is the request/response half of MCP's Streamable HTTP transport: each <code>POST /mcp</code> carries one JSON-RPC message and gets one JSON reply (notifications get <code>202</code>). There is no server-sent event stream; <code>GET /mcp</code> answers 405, as the specification allows.</li>
+<li><code>tokens.yaml</code> stores only SHA-256 hashes. <code>nano-onto token --tokens tokens.yaml --actor alice --revoke</code> removes a user's tokens, and the running server notices without a restart.</li>
+<li>The server binds to <code>127.0.0.1</code> and rejects browser requests from other origins (<code>--allow-origin</code> adds one). Put TLS and your own network controls in front of it before exposing it.</li>
+<li><code>GET /healthz</code> reports the ontology the server holds.</li>
+<li>If the ontology has webhooks, both servers deliver them in the background after each commit.</li>
+</ul>
+<h2 id="skill">Skill</h2>
+<pre><code class="language-bash">nano-onto export-skill --schema ontology.yaml --db shop.db --out skills/procurement
+</code></pre>
+<p>writes <code>skills/procurement/SKILL.md</code>: the object types, every action with its parameters and rules, and instructions to change data only through <code>nano-onto run</code>, to report <code>pending_approval</code> as not done, and never to pick a role to get past a rule.</p>
+<p>A Skill is instructions, not enforcement of identity: the agent passes <code>--actor</code> and <code>--role</code> itself (or you set <code>NANO_ONTO_ACTOR</code> / <code>NANO_ONTO_ROLE</code> in its environment). The rules are still enforced by the CLI; what a Skill cannot prevent is the agent claiming a different role. Use MCP when that matters. A database URL that contains credentials is never written into the Skill; it refers to <code>$NANO_ONTO_DB</code> instead.</p>
+<h2 id="python">Python</h2>
+<pre><code class="language-python">from nano_onto import Actor, Engine, Ontology, open_store
+from nano_onto.mcp_server import MCPServer
+
+onto = Ontology.load(&quot;ontology.yaml&quot;)
+engine = Engine(onto, open_store(&quot;shop.db&quot;, onto))
+alice = Actor(&quot;alice&quot;, &quot;employee&quot;)
+
+# call the engine directly ...
+result = engine.execute(&quot;submit_purchase_order&quot;, {&quot;title&quot;: &quot;servers&quot;, &quot;amount&quot;: 60000, &quot;supplier&quot;: &quot;S-002&quot;}, alice)
+rows = engine.query(&quot;PurchaseOrder&quot;, actor=alice)
+
+# ... or hand your own agent loop the same tools an MCP client would get
+server = MCPServer(engine, alice)
+tools = server.list_tools()                       # name, description, inputSchema for each tool
+payload, is_error = server.call_tool(&quot;onto_explain&quot;, {&quot;action&quot;: &quot;submit_purchase_order&quot;,
+                                                      &quot;params&quot;: {&quot;title&quot;: &quot;servers&quot;, &quot;amount&quot;: 60000, &quot;supplier&quot;: &quot;S-002&quot;}})
+</code></pre>
+<p><code>benchmark/bench.py</code> is a complete example of the second style: an agent loop over any OpenAI-compatible chat endpoint using <code>MCPServer.list_tools()</code> and <code>call_tool()</code>.</p>
+<p>One rule for embedders: an action is its own transaction, so do not call the engine inside your own <code>store.transaction()</code> block.</p>
+    <p style="margin-top:48px;font-size:14px"><a href="https://github.com/JayLZhou/nano-ontology/blob/main/docs/agents.md">Edit this page on GitHub</a></p>
+  </article>
+</div>
+</body>
+</html>
