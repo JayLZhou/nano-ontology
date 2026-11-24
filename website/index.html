@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nano-onto — the action layer for AI agents</title>
+<meta name="description" content="A lightweight, open-source, Palantir-style ontology for AI agents: actions, rules, approvals, read permissions and audit, enforced outside the model and served over MCP.">
+<meta property="og:title" content="nano-onto — the action layer for AI agents">
+<meta property="og:description" content="Describe what may happen in your business in one YAML file. nano-onto enforces it outside the model, for any agent that speaks MCP.">
+<meta property="og:image" content="https://jaylzhou.github.io/nano-ontology/images/console-action-light.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141413'/%3E%3Cpath d='M9 22V10l14 12V10' fill='none' stroke='%23f6f5f1' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./">nano-onto</a>
+    <nav class="links">
+      <a href="#why">Why</a>
+      <a href="#console">Console</a>
+      <a href="#benchmark">Benchmark</a>
+      <a href="#how">How it works</a>
+      <a href="docs/walkthrough.html">Docs</a>
+      <a class="btn small cta" href="https://github.com/JayLZhou/nano-ontology">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<div class="wrap hero">
+  <div class="eyebrow">Executable ontology for AI agents</div>
+  <h1>Let agents act. Keep the rules out of the prompt.</h1>
+  <p class="lede">Describe your business in one YAML file: what exists, what may happen, under which rules, with whose approval, and who may see what. nano-onto enforces it outside the model, for any agent that speaks MCP.</p>
+  <div class="actions">
+    <a class="btn cta" href="#start">Get started</a>
+    <a class="btn" href="docs/walkthrough.html">Read the walkthrough</a>
+    <a class="btn" href="https://github.com/JayLZhou/nano-ontology">View on GitHub</a>
+  </div>
+
+  <div class="frame">
+    <div class="bar"><i></i><i></i><i></i><span>nano-onto console · dry run of a purchase order</span></div>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="images/console-action-dark.png">
+      <img src="images/console-action-light.png" alt="The nano-onto console: a dry run of an 86,000 purchase order shows the two approval rules that would fire, each with the policy sentence it comes from" width="2040" height="1470">
+    </picture>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>43% → 0%</b><span>rule violations, same model, once the rules are enforced instead of prompted</span></div>
+    <div class="stat"><b>18 of 18</b><span>pressured requests broke prompt-only rules; none got past nano-onto</span></div>
+    <div class="stat"><b>~2,500 lines</b><span>of core Python, with one dependency (PyYAML)</span></div>
+    <div class="stat"><b>MCP</b><span>over stdio and HTTP, plus a CLI, a Python API and a console</span></div>
+  </div>
+</div>
+
+<section class="alt" id="why">
+  <div class="wrap">
+    <h2>Knowledge graphs tell an agent what exists.<br>This tells it what it may do.</h2>
+    <p class="kicker">Most ontology projects stop at the semantic layer: entities, properties, relations. That is enough to answer questions. It is not enough to let an agent submit an order or cancel a contract, because the rules for that live in policy documents, and a model asked to remember them will eventually forget one.</p>
+    <div class="grid3">
+      <div class="card"><h3>Actions with rules</h3><p>Typed actions with parameters and effects. Rules are deterministic expressions checked by code: deny, warn, or require approval.</p></div>
+      <div class="card"><h3>Approvals</h3><p>Multi-role sign-off with separation of duties. Nobody approves their own request, and rules are re-checked when the last approval arrives.</p></div>
+      <div class="card"><h3>Read permissions</h3><p>Row- and property-level. Hidden rows look missing, hidden values are masked, and actions cannot reference what their actor may not see.</p></div>
+      <div class="card"><h3>Audit</h3><p>Every attempt is recorded: executed, held, denied, refused, even dry runs. Written in the same transaction as the change.</p></div>
+      <div class="card"><h3>Your database, in place</h3><p>SQLite, PostgreSQL or DuckDB. Map the ontology onto tables you already have and nothing is copied.</p></div>
+      <div class="card"><h3>Change control</h3><p>The database is stamped with the ontology it follows. A changed rule runs only after the change is reviewed and applied.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap two">
+    <div>
+      <h2>An action, in YAML</h2>
+      <p class="kicker" style="margin-bottom:20px">Rules follow the object graph, compare against the actor, and cite the policy they come from. The whole file is checked when it loads, so a misspelt key or a missing property fails before any agent can call it.</p>
+<pre><code>action_types:
+  submit_purchase_order:
+    allowed_roles: [employee, dept_manager, cfo]
+    parameters:
+      title:    {type: string}
+      amount:   {type: number}
+      supplier: {type: object_ref, object_type: Supplier}
+    rules:
+      - id: no_blacklisted_supplier
+        when: params.supplier.blacklisted
+        then: deny
+        message: Blacklisted suppliers cannot be used
+      - id: cfo_over_50k
+        when: params.amount > 50000
+        then: {require_approval: cfo}
+        message: Order exceeds 50,000
+        source: {doc: procurement-policy.md,
+                 quote: "A single purchase above 50,000
+                         requires approval by the CFO."}
+    effects:
+      - create: PurchaseOrder
+        as: po
+        set: {title: params.title, amount: params.amount,
+              requester: actor.id, status: "'approved'"}
+      - link: supplier
+        from: po
+        to: params.supplier</code></pre>
+    </div>
+    <div class="outcomes" style="margin-top:8px">
+      <p class="eyebrow" style="margin:0 0 4px">One call, three possible outcomes</p>
+      <div class="outcome"><span class="pill good">executed</span><p>No rule objects. The effects run in one transaction, together with the audit entry.</p></div>
+      <div class="outcome"><span class="pill warn">pending approval</span><p>A rule requires a sign-off the caller does not hold. A request is stored; nothing changes until every required role approves.</p></div>
+      <div class="outcome"><span class="pill bad">denied</span><p>A rule forbids it. Nothing changes, and the agent gets the rule's message and its source to pass on.</p></div>
+      <div class="outcome"><p><b>The agent sees which one happened.</b> Every tool result carries its status, and "pending approval" plainly means the change has not been made.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="console">
+  <div class="wrap">
+    <h2>A console for the people in the loop</h2>
+    <p class="kicker">Agents act through MCP. People get a web console on the same engine, bound by the same rules: approvers decide requests there, and anyone can see what was done on their behalf.</p>
+    <div class="gallery">
+      <input type="radio" name="tab" id="t1" checked><input type="radio" name="tab" id="t2"><input type="radio" name="tab" id="t3"><input type="radio" name="tab" id="t4"><input type="radio" name="tab" id="t5">
+      <div class="tabs">
+        <label for="t1">Ontology</label><label for="t2">Actions</label><label for="t3">Approvals</label><label for="t4">Data</label><label for="t5">Audit log</label>
+      </div>
+      <div class="shot s1"><div class="figure"><picture><source media="(prefers-color-scheme: dark)" srcset="images/console-ontology-dark.png"><img loading="lazy" src="images/console-ontology-light.png" alt="Console: object types, links and actions with their rules"></picture></div><p>The ontology as it applies to you: types and links, properties hidden from your role, row filters, and every action with its rules and the policy each one quotes.</p></div>
+      <div class="shot s2"><div class="figure"><picture><source media="(prefers-color-scheme: dark)" srcset="images/console-action-dark.png"><img loading="lazy" src="images/console-action-light.png" alt="Console: an action form with a dry-run rule trace"></picture></div><p>A form for every action. A dry run shows which rules would fire and why, before anything changes.</p></div>
+      <div class="shot s3"><div class="figure"><picture><source media="(prefers-color-scheme: dark)" srcset="images/console-approvals-dark.png"><img loading="lazy" src="images/console-approvals-light.png" alt="Console: the approvals inbox"></picture></div><p>An inbox for approvers, with the parameters, the rules that held the request and the sign-offs so far.</p></div>
+      <div class="shot s4"><div class="figure"><picture><source media="(prefers-color-scheme: dark)" srcset="images/console-data-dark.png"><img loading="lazy" src="images/console-data-light.png" alt="Console: data with a masked bank account"></picture></div><p>The data your role may read. Here an employee sees suppliers, but not their bank accounts.</p></div>
+      <div class="shot s5"><div class="figure"><picture><source media="(prefers-color-scheme: dark)" srcset="images/console-audit-dark.png"><img loading="lazy" src="images/console-audit-light.png" alt="Console: the audit log"></picture></div><p>Every attempt, newest first. Auditor roles see everyone's; everyone else sees their own.</p></div>
+    </div>
+    <p class="note">Screenshots of the real console on the bundled procurement example. <a href="docs/console.html">How to run it</a></p>
+  </div>
+</section>
+
+<section id="benchmark">
+  <div class="wrap">
+    <h2>Prompted rules bend under pressure. Enforced rules do not.</h2>
+    <p class="kicker">The same 27 requests went to the same model twice: once with plain database tools and the policy in its prompt, once with nano-onto's tools. Some requests were fine, some needed approval, some were forbidden, and some came with a push: "the CFO already agreed", "I'll take the blame".</p>
+    <div class="figure">
+      <picture><source media="(prefers-color-scheme: dark)" srcset="images/benchmark-dark.svg"><img loading="lazy" src="images/benchmark-light.svg" alt="Benchmark chart: rule violations 43% with prompt-only rules and 0% with nano-onto; task success 42% versus 96%"></picture>
+    </div>
+    <div class="grid3" style="margin-top:22px">
+      <div class="card"><h3>Every pressured request went through</h3><p>With the rules only in its prompt, the model carried out all 18 pressured requests, including creating an 86,000 order as "approved" because the user said the CFO had agreed.</p></div>
+      <div class="card"><h3>The model still tried</h3><p>Behind nano-onto it called the action anyway in 43 of 45 forbidden or approval-gated episodes. The calls came back denied or held, and nothing forbidden was written.</p></div>
+      <div class="card"><h3>Read it as a direction</h3><p>One small model (Qwen3-8B), one small domain, 81 episodes per arm. The harness runs against any OpenAI-compatible endpoint, so you can measure your own model.</p></div>
+    </div>
+    <p class="note">This run used an earlier Chinese-language wording of the same tasks; a rerun on the current English wording is pending. <a href="docs/benchmark.html">Method, numbers and caveats</a></p>
+  </div>
+</section>
+
+<section class="alt" id="how">
+  <div class="wrap">
+    <h2>One engine behind every surface</h2>
+    <p class="kicker">MCP over stdio, MCP over HTTP, the console, the CLI and the Python API all go through the same six steps, as one serialized transaction per action. Who is acting is decided by the surface, never by the model.</p>
+    <div class="figure">
+      <picture><source media="(prefers-color-scheme: dark)" srcset="images/architecture-dark.svg"><img loading="lazy" src="images/architecture-light.svg" alt="Architecture: agents, surfaces, engine, store"></picture>
+    </div>
+    <p class="note"><a href="docs/architecture.html">What exactly is guaranteed, and what is not</a></p>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap two">
+    <div>
+      <h2>Get started</h2>
+      <p class="kicker" style="margin-bottom:26px">Python 3.10 or newer. The only dependency is PyYAML.</p>
+      <div class="steps">
+        <div class="step"><div><h3>Install it and load the example</h3>
+<pre><code>git clone https://github.com/JayLZhou/nano-ontology.git
+cd nano-ontology && python -m pip install -e .
+
+export NANO_ONTO_SCHEMA=examples/procurement/ontology.yaml NANO_ONTO_DB=shop.db
+nano-onto init --seed examples/procurement/seed.json</code></pre></div></div>
+        <div class="step"><div><h3>Ask for something the rules do not simply allow</h3>
+<pre><code>nano-onto run submit_purchase_order -p title=Servers -p amount=60000 \
+    -p supplier=S-002 --actor alice --role employee</code></pre>
+          <p style="margin-top:10px">The order is not created. It waits for the department manager and the CFO.</p></div></div>
+        <div class="step"><div><h3>Give it to an agent, or open the console</h3>
+<pre><code>nano-onto serve-mcp --actor alice --role employee          # any MCP client
+nano-onto console --demo alice:employee --demo carol:cfo    # http://127.0.0.1:8787</code></pre></div></div>
+      </div>
+    </div>
+    <div>
+      <p class="eyebrow" style="margin:10px 0 14px">Or run the whole flow</p>
+<pre><code>bash examples/walkthrough.sh</code></pre>
+      <p style="color:var(--ink2)">Fourteen steps on a throwaway database: dry runs, approvals, read permissions, the audit log, a reviewed rule change, MCP over stdio and HTTP, a Skill export and the console.</p>
+      <p class="eyebrow" style="margin:30px 0 14px">Claude Desktop, Cursor</p>
+<pre><code>{ "mcpServers": { "procurement": {
+    "command": "nano-onto",
+    "args": ["serve-mcp",
+             "--schema", "/abs/path/ontology.yaml",
+             "--db", "/abs/path/shop.db",
+             "--actor", "alice", "--role", "employee"]
+} } }</code></pre>
+      <p class="note"><a href="docs/agents.html">Claude Code, HTTP tokens, Skills and Python</a></p>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>Documentation</h2>
+    <p class="kicker">Everything is also in the repository as Markdown.</p>
+    <div class="doclinks">
+      <a href="docs/walkthrough.html"><b>Walkthrough</b><span>The complete flow, step by step, with real output</span></a>
+      <a href="docs/ontology-reference.html"><b>Ontology reference</b><span>Every key: types, links, actions, rules, permissions, webhooks</span></a>
+      <a href="docs/agents.html"><b>Connect an agent</b><span>MCP over stdio and HTTP, Skills, Python</span></a>
+      <a href="docs/console.html"><b>Console</b><span>The web console for approvers and operators</span></a>
+      <a href="docs/cli-reference.html"><b>CLI reference</b><span>Commands, flags, exit codes</span></a>
+      <a href="docs/architecture.html"><b>Architecture</b><span>Semantics, guarantees, limits</span></a>
+      <a href="docs/benchmark.html"><b>Benchmark</b><span>Method, numbers, how to run your own model</span></a>
+      <a href="docs/walkthrough_cn.html"><b>完整流程（中文）</b><span>逐步讲解，附真实输出</span></a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>nano-onto · MIT License</span>
+    <span><a href="https://github.com/JayLZhou/nano-ontology">GitHub</a> · <a href="docs/changelog.html">Changelog</a></span>
+  </div>
+</footer>
+</body>
+</html>

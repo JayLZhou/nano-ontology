@@ -9,6 +9,8 @@ dist/
 venv/
 .DS_Store
 
+_site/
+
 # local data
 *.db
 *.db-journal

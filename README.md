@@ -17,6 +17,7 @@
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   </p>
   <p>
+    <a href="https://jaylzhou.github.io/nano-ontology/">Website</a> ·
     <a href="./docs/walkthrough.md">Walkthrough</a> ·
     <a href="./docs/ontology-reference.md">Ontology reference</a> ·
     <a href="./docs/agents.md">Connect an agent</a> ·

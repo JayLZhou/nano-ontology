@@ -19,6 +19,9 @@ Roadmap features:
 
 Documentation and tooling:
 
+- Project website (`website/` + `scripts/build_site.py`): a landing page and documentation pages generated
+  from the repository's Markdown, published to GitHub Pages by `.github/workflows/pages.yml`.
+
 - The procurement example, its seed data and the benchmark tasks are now in English. The published
   benchmark numbers were measured on the earlier Chinese wording (kept as `*.zh.json`).
 
